@@ -61,3 +61,69 @@ body {
 .stars button { background: none; border: 0; font-size: 36px; line-height: 1; color: #d1d9d4; cursor: pointer; padding: 0 2px; }
 .stars button.on { color: #e9a817; }
 .info { margin: 12px 0; }
+
+.home-sos-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  margin: 18px 0 24px;
+  background: #fff0f0;
+  border: 1px solid #f5cccc;
+  border-radius: 14px;
+}
+
+.home-sos-icon {
+  font-size: 30px;
+}
+
+.home-sos-text {
+  flex: 1;
+}
+
+.home-sos-text h3 {
+  margin: 0 0 6px;
+  color: #a51f1f;
+  font-size: 16px;
+}
+
+.home-sos-text p {
+  margin: 0;
+  color: #765555;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.home-sos-button {
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 13px;
+  background: #c62828;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.home-sos-button:hover {
+  background: #a51f1f;
+}
+
+@media (max-width: 480px) {
+  .home-sos-banner {
+    flex-wrap: wrap;
+  }
+
+  .home-sos-button {
+    width: 100%;
+  }
+}
+.sos-nav-button {
+  background: #c62828 !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+}
+
+.sos-nav-button:hover {
+  background: #a51f1f !important;
+}
