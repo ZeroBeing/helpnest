@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createRequest } from '../lib/api'
-import { checkScam } from '../lib/scamCheck'
+import { checkScamAI } from '../lib/scamCheck'
 
 const CATEGORIES = ['Groceries', 'Rides', 'Tools', 'Lost and Found', 'Other']
 
@@ -8,20 +8,21 @@ export default function PostScreen({ onDone }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('Groceries')
-  const [warning, setWarning] = useState(false)
+  const [warning, setWarning] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    const { scamFlag } = checkScam(title, description)
-    if (scamFlag && !warning) {
-      setWarning(true)
-      return
-    }
     setLoading(true)
     try {
+      const { scamFlag, reason } = await checkScamAI(title, description)
+      if (scamFlag && !warning) {
+        setWarning(reason || 'This request looks suspicious.')
+        setLoading(false)
+        return
+      }
       await createRequest({ title, description, category, scamFlag })
       onDone()
     } catch (err) {
@@ -39,7 +40,7 @@ export default function PostScreen({ onDone }) {
           <label>What do you need?</label>
           <input
             value={title}
-            onChange={(e) => { setTitle(e.target.value); setWarning(false) }}
+            onChange={(e) => { setTitle(e.target.value); setWarning('') }}
             required
           />
         </div>
@@ -55,22 +56,21 @@ export default function PostScreen({ onDone }) {
           <label>Details</label>
           <textarea
             value={description}
-            onChange={(e) => { setDescription(e.target.value); setWarning(false) }}
+            onChange={(e) => { setDescription(e.target.value); setWarning('') }}
             required
           />
         </div>
 
         {warning && (
           <p className="error">
-            ⚠️ This looks like it may involve money, personal info or links. HelpNest is for
-            free neighbour help only. Please edit your request, or post anyway and it will
-            be held for review.
+            ⚠️ AI safety check: {warning} HelpNest is for free neighbour help only. Edit your
+            request, or post anyway and it will be held for review.
           </p>
         )}
         {error && <p className="error">{error}</p>}
 
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? 'Posting...' : warning ? 'Post anyway (held for review)' : 'Post request'}
+          {loading ? 'Checking...' : warning ? 'Post anyway (held for review)' : 'Post request'}
         </button>
       </form>
     </div>
