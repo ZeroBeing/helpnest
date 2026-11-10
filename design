@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neighbourly — Your community, connected.</title>
+<style>
+:root{--green:#1f5a46;--green2:#2f7a5f;--mint:#e8f3ec;--bg:#f6f7f3;--ink:#1b2823;--muted:#6c7b73;--line:#e2e9e4;--red:#d62f2f;--red2:#b21f1f;--redbg:#fdeeee;--white:#fff;--shadow:0 12px 35px rgba(28,62,44,.09)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink)}
+button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}
+.topbar{height:70px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(5vw,20px);position:sticky;top:0;z-index:10;gap:10px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:21px;color:var(--green);letter-spacing:-.5px}.brand-mark{width:35px;height:35px;border-radius:12px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:20px}
+.nav{display:flex;align-items:center;gap:6px}.nav button{background:transparent;color:#5e6c63;padding:10px 13px;border-radius:12px;font-weight:650}.nav button.active,.nav button:hover{background:var(--mint);color:var(--green)}
+.nav button.sos-nav{background:var(--red);color:#fff;font-weight:800;letter-spacing:.5px}.nav button.sos-nav:hover{background:var(--red2);color:#fff}
+.avatar{width:36px;height:36px;border-radius:50%;background:#dcebe0;color:var(--green);font-weight:800;display:grid;place-items:center}
+main{max-width:1080px;margin:0 auto;padding:30px 24px 120px}.page{display:none}.page.active{display:block}
+h1,h2,h3,p{margin-top:0}h1{font-size:clamp(28px,4vw,40px);letter-spacing:-1.2px;margin-bottom:10px}h2{font-size:22px;letter-spacing:-.5px;margin-bottom:8px}h3{font-size:17px;margin-bottom:7px}.muted{color:var(--muted)}.small{font-size:13px}.eyebrow{color:var(--green2);font-weight:800;letter-spacing:1.3px;font-size:11px;text-transform:uppercase}
+.btn{background:var(--green);color:#fff;border-radius:12px;padding:12px 18px;font-weight:750;transition:.15s}.btn:hover{background:#174536;transform:translateY(-1px)}.btn:disabled{opacity:.5;cursor:not-allowed;transform:none;background:var(--green)}.btn.secondary{background:var(--mint);color:var(--green)}.btn.ghost{background:transparent;color:var(--green);border:1px solid var(--line)}.btn.light{background:#fff;color:var(--green)}.btn.smallbtn{padding:9px 13px;font-size:13px}.btn.red{background:var(--red)}.btn.red:hover{background:var(--red2)}
+.hero{background:var(--green);border-radius:22px;padding:30px 34px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:24px;box-shadow:var(--shadow);margin:20px 0 18px;overflow:hidden;position:relative}.hero:after{content:"";position:absolute;width:240px;height:240px;border:1px solid rgba(255,255,255,.14);border-radius:50%;right:8%;top:-135px;box-shadow:0 0 0 28px rgba(255,255,255,.035),0 0 0 58px rgba(255,255,255,.025)}.hero h2{font-size:28px;max-width:500px}.hero p{color:#dcebe1;margin-bottom:18px}.hero-art{font-size:78px;z-index:1;padding:0 22px}
+
+.sos-banner{display:flex;align-items:center;gap:18px;background:var(--redbg);border:2px solid var(--red);border-radius:20px;padding:18px 22px;margin-bottom:30px;box-shadow:0 8px 24px rgba(214,47,47,.12)}
+.sos-banner .sos-circle{width:74px;height:74px;flex:none;border-radius:50%;background:var(--red);color:#fff;font-weight:900;font-size:21px;display:grid;place-items:center;border:5px solid #fff;box-shadow:0 0 0 3px var(--red);animation:pulse 2s infinite}
+.sos-banner h2{margin-bottom:4px;color:var(--red2);font-size:20px}.sos-banner p{margin:0;color:#7a3a3a;font-size:14px}.sos-banner .btn{margin-left:auto;white-space:nowrap}
+.sos-steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sos-steps span{font-size:12px;font-weight:700;background:#fff;color:var(--red2);padding:5px 10px;border-radius:20px;border:1px solid #f0c2c2}
+
+.section-head{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:10px 0 16px}.filters{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0 18px}.chip{background:#fff;border:1px solid var(--line);padding:8px 13px;border-radius:30px;color:#5d6b62;font-size:13px;font-weight:650}.chip.active{background:var(--green);color:#fff;border-color:var(--green)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.request-card,.panel,.stat{background:#fff;border:1px solid var(--line);border-radius:17px;padding:19px;box-shadow:0 5px 18px rgba(28,62,44,.035)}.request-card{display:flex;flex-direction:column;min-height:205px}.card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.category{font-size:11px;font-weight:850;letter-spacing:.8px;color:var(--green2);background:var(--mint);padding:7px 10px;border-radius:20px}.time{font-size:12px;color:var(--muted)}.request-card h3{line-height:1.35}.request-card p{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}.card-bottom{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.helper{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}.helper b{color:var(--ink);font-weight:700}
+.mini-av{width:24px;height:24px;border-radius:50%;background:var(--mint);color:var(--green);font-weight:800;font-size:12px;display:inline-grid;place-items:center}
+.rate{font-size:12px;font-weight:800;color:#8a5a00;background:#fff3d6;padding:2px 8px;border-radius:20px;white-space:nowrap}.rate.new{color:var(--green2);background:var(--mint)}
+.badge{font-size:11px;font-weight:800;padding:5px 9px;border-radius:20px;margin-left:6px}.badge.open{background:var(--mint);color:var(--green)}.badge.progress{background:#fff0d1;color:#8a5a00}.badge.done{background:#dfe7e2;color:#40524a}
+
+.two-col{display:grid;grid-template-columns:1.15fr .85fr;gap:22px}.form-card{max-width:680px;margin:10px auto}.field{margin:16px 0}.field label{display:block;font-size:13px;font-weight:750;margin-bottom:7px}.field input,.field textarea,.field select{width:100%;padding:13px 14px;border:1px solid #dce5dd;border-radius:11px;background:#fff;outline:none;color:var(--ink)}.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--green2);box-shadow:0 0 0 3px #e9f2ec}.field textarea{min-height:115px;resize:vertical}
+.notice{padding:13px 15px;border-radius:12px;background:#f2f7f2;color:#476452;font-size:13px;line-height:1.5}.warning{background:#fff6e9;color:#805a20}.success{background:#edf7ef;color:#326044}
+
+/* Request screen */
+.detail-layout{display:grid;grid-template-columns:1.3fr .7fr;gap:20px;align-items:start}.col{display:flex;flex-direction:column;gap:20px}
+.demo-switch{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff8e6;border:1px dashed #e0b04a;border-radius:12px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#7a5a12}
+.seg{display:flex;background:#fff;border:1px solid #e6d3a2;border-radius:10px;overflow:hidden}.seg button{background:#fff;padding:7px 14px;font-size:12px;font-weight:700;color:#7a5a12}.seg button.active{background:#7a5a12;color:#fff}
+.role-banner{padding:14px 16px;border-radius:14px;margin-bottom:16px;font-size:14px;font-weight:650;line-height:1.45}.role-banner.visitor{background:#eaeff6;color:#3b4d63}.role-banner.helper{background:#e5f4ea;color:#2c5a3f}.role-banner.owner{background:#fff1d6;color:#7a5412}
+.poster{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin:16px 0;background:#fafcfa}.poster .pa{width:44px;height:44px;border-radius:14px;background:var(--mint);color:var(--green);font-weight:850;font-size:18px;display:grid;place-items:center;flex:none}.poster strong{display:block;font-size:15px}.poster span.sub{font-size:12px;color:var(--muted)}
+.chatbox{height:260px;overflow:auto;background:#f8faf8;border:1px solid var(--line);border-radius:13px;padding:14px;margin:12px 0;display:flex;flex-direction:column;gap:10px}.bubble{padding:10px 13px;border-radius:13px;background:#fff;border:1px solid var(--line);max-width:80%;font-size:13px;line-height:1.45}.bubble.mine{background:var(--mint);border-color:#dcebe0;align-self:flex-end}.chat-send{display:flex;gap:8px}.chat-send input{flex:1;min-width:0;border:1px solid var(--line);border-radius:11px;padding:11px}
+.locked{display:grid;place-items:center;text-align:center;min-height:220px;color:var(--muted);gap:6px;padding:10px;font-size:14px}.locked .lock{font-size:34px}
+.offer{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-top:10px}.offer .info{flex:1;min-width:0}.offer strong{display:block;font-size:14px}.offer.chosen{border-color:var(--green2);background:#f4faf6}
+.rate-card{border:2px solid var(--green2);background:#f4faf6}
+.stars{display:flex;gap:4px;margin:10px 0}.stars button{background:none;font-size:36px;line-height:1;color:#d1d9d4;padding:0 2px}.stars button.on{color:#e9a817}
+.checklist{margin:8px 0 0;padding-left:19px;font-size:13px;color:var(--muted);line-height:1.9}
+
+.profile-head{display:flex;align-items:center;gap:18px;padding:25px}.big-avatar{width:70px;height:70px;border-radius:23px;background:var(--mint);display:grid;place-items:center;font-size:27px;color:var(--green);font-weight:850}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin:16px 0}.stat strong{font-size:25px;color:var(--green);display:block}.stat span{font-size:12px;color:var(--muted)}
+.auth-wrap{min-height:70vh;display:grid;place-items:center}.auth{width:min(440px,100%);background:#fff;border:1px solid var(--line);border-radius:22px;padding:32px;box-shadow:var(--shadow)}.auth .brand{margin-bottom:28px}.auth h1{font-size:29px}.auth-switch{text-align:center;font-size:13px;margin-top:18px;color:var(--muted)}
+.empty{padding:35px;text-align:center;color:var(--muted);background:#fff;border:1px dashed #cbd9ce;border-radius:16px;grid-column:1/-1}
+
+.fab{position:fixed;right:22px;bottom:22px;z-index:25;width:78px;height:78px;border-radius:50%;background:var(--red);color:#fff;font-weight:900;font-size:19px;letter-spacing:.5px;border:5px solid #fff;box-shadow:0 0 0 3px var(--red),0 10px 28px rgba(214,47,47,.45);animation:pulse 2s infinite}
+.fab:hover{background:var(--red2)}
+@keyframes pulse{0%{box-shadow:0 0 0 3px var(--red),0 0 0 3px rgba(214,47,47,.5)}70%{box-shadow:0 0 0 3px var(--red),0 0 0 16px rgba(214,47,47,0)}100%{box-shadow:0 0 0 3px var(--red),0 0 0 0 rgba(214,47,47,0)}}
+
+.overlay{position:fixed;inset:0;background:rgba(20,30,25,.6);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}.overlay.open{display:flex}
+.sheet{background:#fff;width:min(560px,100%);max-height:92vh;overflow:auto;border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.sheet-head{background:var(--red);color:#fff;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;border-radius:24px 24px 0 0}.sheet-head h2{margin:0;color:#fff;font-size:20px}.sheet-head p{margin:2px 0 0;font-size:12px;color:#ffd9d9}.close{background:rgba(255,255,255,.2);color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid #222;border-radius:14px;margin:16px 18px 0;overflow:hidden}
+.tabs button{background:#fff;padding:11px 4px;font-size:12.5px;font-weight:700;color:#444;border-right:1.5px solid #222;display:flex;flex-direction:column;align-items:center;gap:6px}.tabs button:last-child{border-right:0}.tabs button:before{content:"";width:9px;height:9px;border-radius:50%;background:#222}.tabs button.active{background:var(--red);color:#fff}.tabs button.active:before{background:#fff}
+.tab-body{padding:20px 22px 24px;display:none}.tab-body.active{display:block}
+.big-sos{width:170px;height:170px;border-radius:50%;background:var(--red);color:#fff;font-size:42px;font-weight:900;border:8px solid #fff;box-shadow:0 0 0 4px var(--red),0 14px 34px rgba(214,47,47,.4);display:block;margin:14px auto 18px;animation:pulse 2s infinite}
+.big-sos:hover{background:var(--red2)}
+.sos-status{text-align:center;font-size:14px;line-height:1.5;min-height:44px}
+.step{display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}.step:last-child{border:0}.step-n{width:30px;height:30px;flex:none;border-radius:50%;background:#222;color:#fff;font-weight:800;font-size:14px;display:grid;place-items:center}.step strong{display:block;font-size:15px}.step span{font-size:13px;color:var(--muted)}
+.contact{display:flex;align-items:center;gap:13px;padding:13px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px}.contact .ic{width:42px;height:42px;border-radius:13px;background:var(--redbg);display:grid;place-items:center;font-size:20px}.contact .info{flex:1}.contact strong{display:block;font-size:15px}.contact span{font-size:12px;color:var(--muted)}.contact a{background:var(--red);color:#fff;text-decoration:none;font-weight:800;font-size:13px;padding:9px 14px;border-radius:10px}
+.res{display:flex;gap:12px;padding:13px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;align-items:flex-start;text-decoration:none;color:inherit}.res .ic{font-size:22px}.res strong{display:block;font-size:14px}.res span{font-size:12px;color:var(--muted)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translate(-50%,20px);background:#1e3328;color:#fff;padding:12px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:60;box-shadow:var(--shadow);font-size:14px;max-width:90vw;text-align:center}.toast.show{opacity:1;transform:translate(-50%,0)}
+body.loggedout .topbar,body.loggedout footer{display:none}body.loggedout main{padding-top:10px}
+footer{text-align:center;color:#8a978e;font-size:12px;padding:25px}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.two-col,.detail-layout{grid-template-columns:1fr}.hero-art{font-size:55px;padding:0}.nav button{padding:9px 8px;font-size:13px}}
+@media(max-width:560px){.topbar{height:auto;min-height:65px;padding:12px 15px;flex-wrap:wrap;gap:8px}.nav{width:100%;justify-content:space-between;order:2}.nav button{font-size:12px;padding:8px 9px}.avatar{display:none}main{padding:22px 15px 120px}.hero{padding:24px 20px}.hero h2{font-size:23px}.hero-art{display:none}.grid{grid-template-columns:1fr}.section-head{align-items:start;flex-direction:column}.stats{gap:8px}.stat{padding:13px}.stat strong{font-size:21px}.sos-banner{flex-wrap:wrap}.sos-banner .btn{margin-left:0;width:100%}.fab{width:68px;height:68px;font-size:17px;right:16px;bottom:16px}.profile-head{flex-wrap:wrap}}
+</style>
+</head>
+<body class="loggedout">
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">⌂</span>Neighbourly</div>
+  <nav class="nav" id="nav">
+    <button data-page="home">Home</button>
+    <button data-page="post">Post a request</button>
+    <button data-page="profile">Profile</button>
+    <button class="sos-nav" onclick="openSOS('sos')">🚨 SOS</button>
+  </nav>
+  <div class="avatar" id="avatar">A</div>
+</header>
+<main>
+<section class="page" id="home">
+  <div class="eyebrow">A little help goes a long way</div>
+  <h1>Your community, connected.</h1>
+  <p class="muted">Find a helping hand nearby — or be one.</p>
+  <div class="hero">
+    <div><div class="eyebrow" style="color:#c4e1ce">Stronger together</div><h2>Need a helping hand?</h2><p>Ask your neighbours for assistance. Someone nearby may be happy to help.</p><button class="btn light" onclick="showPage('post')">＋ Post a request</button></div>
+    <div class="hero-art">🤝</div>
+  </div>
+
+  <div class="sos-banner">
+    <div class="sos-circle">SOS</div>
+    <div>
+      <h2>In an emergency? Tap SOS.</h2>
+      <p>Fast emergency workflow — one tap opens everything you need.</p>
+      <div class="sos-steps"><span>1 · Quick access</span><span>2 · Instructions</span><span>3 · Contacts</span><span>4 · Resources</span></div>
+    </div>
+    <button class="btn red" onclick="openSOS('sos')">Open Emergency Button</button>
+  </div>
+
+  <div class="section-head"><div><h2>Nearby requests</h2><p class="muted small">People around your community could use a hand.</p></div><span class="small muted" id="requestCount">3 requests</span></div>
+  <div class="filters" id="filters">
+    <button class="chip active" data-filter="All">All</button><button class="chip" data-filter="Groceries">🛒 Groceries</button><button class="chip" data-filter="Rides">🚗 Rides</button><button class="chip" data-filter="Tools">🔧 Tools</button><button class="chip" data-filter="Lost and Found">🔎 Lost &amp; Found</button>
+  </div>
+  <div class="grid" id="requestGrid"></div>
+</section>
+
+<section class="page" id="post">
+  <div class="form-card panel">
+    <div class="eyebrow">Ask your community</div><h1 style="font-size:31px">Post a request</h1>
+    <p class="muted">Explain what you need. Keep it clear so neighbours can help.</p>
+    <form id="requestForm">
+      <div class="field"><label for="title">What do you need? *</label><input id="title" required maxlength="80" placeholder="e.g. Need groceries for my grandmother"></div>
+      <div class="field"><label for="description">Add some details *</label><textarea id="description" required maxlength="500" placeholder="Tell your neighbours what would help..."></textarea></div>
+      <p class="muted small" style="margin:-4px 0 14px">🏷️ We'll pick the category for you automatically (groceries, rides, tools, lost and found, or other).</p>
+      <div class="notice">🛡️ <strong>Community safety check:</strong> Neighbourly will flag suspicious requests for review. Never share passwords, OTPs or sensitive personal details.</div>
+      <p class="small" style="margin:10px 0 0"><a href="#" onclick="fillScam();return false" style="color:var(--green2);font-weight:700">Demo: fill in a scam example</a></p>
+      <div class="notice" style="background:var(--redbg);color:#7a3a3a;margin-top:10px">🚨 <strong>Life-threatening emergency?</strong> Don't post a request — <a href="#" onclick="openSOS('sos');return false" style="color:var(--red2);font-weight:800">use the SOS button</a>.</div>
+      <div id="aiResult" style="display:none;margin-top:12px"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button type="button" class="btn ghost" onclick="showPage('home')">Cancel</button><button class="btn" type="submit">Check &amp; publish request</button></div>
+    </form>
+  </div>
+</section>
+
+<section class="page" id="detail"></section>
+
+<section class="page" id="profile">
+  <div class="panel profile-head"><div class="big-avatar" id="profileInitial">A</div><div><div class="eyebrow">Your neighbour profile</div><h1 id="profileName" style="font-size:27px;margin:5px 0">Alex Ahmed</h1><p class="muted small">Member of the Neighbourly community · <span id="profileArea">Multan</span></p></div><div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary smallbtn" onclick="toast('Profile editing is a demo feature.')">Edit profile</button><button class="btn ghost smallbtn" onclick="logout()">Log out</button></div></div>
+  <div class="stats"><div class="stat"><strong id="helpedCount">0</strong><span>People helped</span></div><div class="stat"><strong id="ratingStat">New</strong><span>Community rating</span></div><div class="stat"><strong id="postedCount">0</strong><span>Requests posted</span></div></div>
+  <div class="two-col">
+    <div class="panel"><h2>My activity</h2><p class="muted small">Your recent community activity.</p><div id="activityList"></div></div>
+    <div class="panel"><h2>Community guidelines</h2><p class="muted small">A few ways to keep Neighbourly safe:</p><ul class="muted small" style="line-height:1.9;padding-left:19px"><li>Be kind and respectful.</li><li>Never share OTPs or passwords.</li><li>Meet in public places when possible.</li><li>Report suspicious activity.</li></ul></div>
+  </div>
+</section>
+
+<section class="page active" id="auth">
+  <div class="auth-wrap"><div class="auth">
+    <div class="brand"><span class="brand-mark">⌂</span>Neighbourly</div>
+    <div class="eyebrow">Welcome to your community</div><h1 id="authHeading">Good to see you.</h1><p class="muted" id="authSub">Log in to connect with neighbours nearby.</p>
+    <form id="authForm"><div class="field" id="nameField" style="display:none"><label>Your name</label><input id="authName" placeholder="e.g. Alex Ahmed"></div><div class="field"><label>Phone number</label><input id="authPhone" type="tel" placeholder="+92 3XX XXXXXXX" required></div><div class="field"><label>Password</label><input id="authPass" type="password" placeholder="At least 6 characters" minlength="6" required></div><div class="field" id="confirmField" style="display:none"><label>Confirm password</label><input id="authConfirm" type="password" placeholder="Re-enter password"></div><div id="authError" class="notice warning" style="display:none;margin-bottom:12px"></div><button class="btn" id="authBtn" style="width:100%">Log in</button></form>
+    <p class="auth-switch"><span id="switchText">New to Neighbourly?</span> <a href="#" id="switchLink" onclick="setAuthMode(!signupMode);return false" style="color:var(--green);font-weight:750;text-decoration:none">Sign up</a></p>
+    <p class="auth-switch" style="margin-top:8px">Demo only. No real account or phone verification is created.</p>
+  </div></div>
+</section>
+</main>
+<footer>Neighbourly · Your community, connected. <br>Prototype for demonstration — sample requests and demo interactions only.</footer>
+
+<button class="fab" onclick="openSOS('sos')" aria-label="Emergency SOS button">SOS</button>
+
+<div class="overlay" id="sosOverlay" onclick="if(event.target===this)closeSOS()">
+  <div class="sheet" role="dialog" aria-label="Emergency">
+    <div class="sheet-head"><div><h2>🚨 Emergency Button</h2><p>Fast emergency workflow</p></div><button class="close" onclick="closeSOS()" aria-label="Close">✕</button></div>
+    <div class="tabs" id="sosTabs">
+      <button class="active" data-tab="sos">SOS</button><button data-tab="steps">Steps</button><button data-tab="contacts">Contacts</button><button data-tab="resources">Resources</button>
+    </div>
+    <div class="tab-body active" id="tab-sos">
+      <button class="big-sos" id="bigSos" onclick="triggerSOS()">SOS</button>
+      <div class="sos-status" id="sosStatus"><strong>Tap SOS for quick access.</strong><br><span class="muted">Your emergency contacts and nearby neighbours will be alerted (demo).</span></div>
+      <p class="muted small" style="text-align:center;margin:14px 0 0">In a life-threatening emergency, call <strong>1122</strong> (Rescue) right away.</p>
+    </div>
+    <div class="tab-body" id="tab-steps">
+      <h3>What to do now</h3>
+      <div class="step"><div class="step-n">1</div><div><strong>Stay calm and get to safety</strong><span>Move away from danger if you can do so safely.</span></div></div>
+      <div class="step"><div class="step-n">2</div><div><strong>Call emergency services</strong><span>Rescue 1122 · Police 15 · Ambulance 115 · Fire 16.</span></div></div>
+      <div class="step"><div class="step-n">3</div><div><strong>Say where you are</strong><span>Give your address or a nearby landmark, and what happened.</span></div></div>
+      <div class="step"><div class="step-n">4</div><div><strong>Alert someone close</strong><span>Notify a family member or neighbour who can reach you.</span></div></div>
+      <div class="step"><div class="step-n">5</div><div><strong>Stay on the line</strong><span>Follow the operator's instructions until help arrives.</span></div></div>
+    </div>
+    <div class="tab-body" id="tab-contacts">
+      <h3>Emergency contacts</h3>
+      <div class="contact"><div class="ic">🚑</div><div class="info"><strong>Rescue 1122</strong><span>Ambulance &amp; rescue</span></div><a href="tel:1122">Call</a></div>
+      <div class="contact"><div class="ic">👮</div><div class="info"><strong>Police</strong><span>Emergency 15</span></div><a href="tel:15">Call</a></div>
+      <div class="contact"><div class="ic">🏥</div><div class="info"><strong>Edhi Ambulance</strong><span>115</span></div><a href="tel:115">Call</a></div>
+      <div class="contact"><div class="ic">🔥</div><div class="info"><strong>Fire Brigade</strong><span>16</span></div><a href="tel:16">Call</a></div>
+      <div class="contact"><div class="ic">👪</div><div class="info"><strong>Family contact</strong><span>Demo — add your own number</span></div><a href="#" onclick="toast('Adding contacts is a demo feature.');return false">Add</a></div>
+    </div>
+    <div class="tab-body" id="tab-resources">
+      <h3>Nearby resources</h3>
+      <a class="res" href="https://www.google.com/maps/search/hospital+near+me" target="_blank" rel="noopener"><div class="ic">🏥</div><div><strong>Nearest hospital</strong><span>Open in Maps</span></div></a>
+      <a class="res" href="https://www.google.com/maps/search/pharmacy+near+me" target="_blank" rel="noopener"><div class="ic">💊</div><div><strong>Nearest pharmacy</strong><span>Open in Maps</span></div></a>
+      <a class="res" href="https://www.google.com/maps/search/police+station+near+me" target="_blank" rel="noopener"><div class="ic">🚓</div><div><strong>Nearest police station</strong><span>Open in Maps</span></div></a>
+      <div class="res"><div class="ic">🩹</div><div><strong>Basic first aid</strong><span>Apply pressure to bleeding, keep the person still and warm, don't give food or water to someone unconscious.</span></div></div>
+      <div class="res"><div class="ic">🤝</div><div><strong>Neighbours nearby</strong><span>Demo — 2 neighbours available to help.</span></div></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Data ---------- */
+const zain={name:"Zain Ahmed",sum:47,count:10},maryam={name:"Maryam Tariq",sum:0,count:0},imran={name:"Imran Shah",sum:23,count:5};
+const helperPool=[zain,maryam,imran];
+const starter=[
+{id:1,title:"Need groceries for my grandmother",description:"Could someone help pick up a few groceries from the local store? I can share the list.",category:"Groceries",time:"10 min ago",poster:{name:"Sara Khan",sum:96,count:20},helpers:[zain,maryam],status:"open"},
+{id:2,title:"Looking to borrow a drill",description:"I need a power drill for a small shelf installation this afternoon. Happy to return it today.",category:"Tools",time:"25 min ago",poster:{name:"Bilal Raza",sum:0,count:0},helpers:[zain],status:"open"},
+{id:3,title:"Need a ride to the hospital",description:"Looking for a neighbour who can help with a ride to a nearby hospital. Please message me.",category:"Rides",time:"5 min ago",poster:{name:"Hina Malik",sum:98,count:20},helpers:[maryam],status:"open"}
+];
+const demoUser={name:"Alex Ahmed",phone:"",area:"Multan",sum:49,count:10,helped:3,posted:2,activity:[{t:"✓ Helped a neighbour with groceries",s:"Completed",cls:"success"},{t:"↗ Posted a request for a ride",s:"Open",cls:""}]};
+let requests=starter.slice(),filter="All",current=null,user=demoUser,sosTimer=null,demoRole=null,draftStars=0;
+const offers={},chats={},accounts={};
+const icons={"Groceries":"🛒","Tools":"🔧","Rides":"🚗","Lost and Found":"🔎","Other":"💚"};
+
+/* ---------- Helpers ---------- */
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2600)}
+function avg(p){return(p.sum/p.count).toFixed(1)}
+function ratingBadge(p){return p.count?`<span class="rate">★ ${avg(p)}</span>`:`<span class="rate new">New</span>`}
+function ratingNote(p){return p.count?`${p.count} rating${p.count===1?"":"s"}`:"No ratings yet"}
+function initial(n){return escapeHTML((n||"?").charAt(0).toUpperCase())}
+function classify(text){const t=text.toLowerCase();
+  if(/\b(lost|found|missing|misplaced)\b|keys|wallet/.test(t))return"Lost and Found";
+  if(/\b(ride|lift|airport|taxi|drop me|pick me)\b/.test(t))return"Rides";
+  if(/grocer|milk|vegetable|shopping|supermarket/.test(t))return"Groceries";
+  if(/\b(drill|borrow|lend|ladder|hammer|tool|tools|screwdriver)\b/.test(t))return"Tools";
+  return"Other"}
+
+/* ---------- Navigation ---------- */
+function showPage(id){document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".nav button[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="home")renderRequests();if(id==="profile")renderProfile()}
+document.querySelectorAll(".nav button[data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));
+
+/* ---------- Home ---------- */
+function renderRequests(){const grid=document.getElementById("requestGrid");const list=requests.filter(r=>filter==="All"||r.category===filter);document.getElementById("requestCount").textContent=list.length+(list.length===1?" request":" requests");
+  const label={open:"Open",progress:"In progress",done:"Done"};
+  grid.innerHTML=list.map(r=>`<article class="request-card"><div class="card-top"><span><span class="category">${icons[r.category]||"💚"} ${r.category.toUpperCase()}</span>${r.status!=="open"?`<span class="badge ${r.status}">${label[r.status]}</span>`:""}</span><span class="time">${r.time}</span></div><h3>${escapeHTML(r.title)}</h3><p>${escapeHTML(r.description)}</p><div class="card-bottom"><span class="helper"><span class="mini-av">${initial(r.poster.name)}</span><b>${escapeHTML(r.poster.name)}</b>${ratingBadge(r.poster)}</span><button class="btn secondary smallbtn" onclick="openDetail(${r.id})">View →</button></div></article>`).join("")||'<div class="empty">No requests in this category yet.</div>'}
+document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;document.querySelectorAll(".chip").forEach(x=>x.classList.toggle("active",x===b));renderRequests()}));
+
+/* ---------- Post a request ---------- */
+function fillScam(){document.getElementById("title").value="URGENT: send money, I'll pay back double";document.getElementById("description").value="I lost my wallet abroad and need help right now. Please buy a gift card and send me the code, and share the OTP that arrives on your phone so I can verify you. I will pay you back double tomorrow!";toast("Scam example filled in — now tap Check & publish.")}
+document.getElementById("requestForm").addEventListener("submit",e=>{e.preventDefault();
+  const title=document.getElementById("title").value.trim(),description=document.getElementById("description").value.trim();
+  const suspicious=/gift.?card|send money|bank password|otp|verification code|wire transfer|crypto/i.test(title+" "+description);
+  const result=document.getElementById("aiResult");result.style.display="block";result.className="notice "+(suspicious?"warning":"success");
+  if(suspicious){result.textContent="⚠️ Demo safety check: this looks like a possible scam (it mentions gift cards, OTPs or sending money). It was not published. Never send money or share OTPs with someone you haven't met.";toast("Request blocked by the safety check.");return}
+  const category=classify(title+" "+description);
+  result.textContent="✓ Demo safety check passed. Category picked automatically: "+category+". (Basic rule-based demo, not a real AI model.)";
+  requests.unshift({id:Date.now(),title,description,category,time:"just now",poster:user,helpers:[],status:"open"});user.posted++;user.activity.unshift({t:"↗ Posted “"+title+"”",s:"Open",cls:""});
+  document.getElementById("requestForm").reset();
+  setTimeout(()=>{result.style.display="none";filter="All";document.querySelectorAll(".chip").forEach(x=>x.classList.toggle("active",x.dataset.filter==="All"));showPage("home");toast("Your request has been posted!")},900)});
+
+/* ---------- Request screen: visitor / helper / owner ---------- */
+function roleOf(r){return demoRole||(r.poster===user?"owner":offers[r.id]?"helper":"visitor")}
+function chatCtx(){const r=current,role=roleOf(r);const partner=role==="owner"?(r.chosen?r.chosen.name:""):r.poster.name;return{role,partner,key:r.id+":"+role+":"+partner}}
+function openDetail(id){current=requests.find(x=>x.id===id);if(!current)return;demoRole=null;draftStars=0;renderDetail();showPage("detail")}
+function setRole(x){demoRole=x;draftStars=0;renderDetail()}
+function offerHelp(){offers[current.id]=true;demoRole=null;toast("Your offer to help was sent (demo). Chat is now unlocked.");renderDetail()}
+function withdraw(){offers[current.id]=false;demoRole=null;toast("Offer withdrawn.");renderDetail()}
+function acceptHelper(i){const r=current;r.chosen=r.helpers[i];r.status="progress";draftStars=0;toast(r.chosen.name+" accepted. You can chat now.");renderDetail()}
+function simulateOffer(){const r=current;const h=helperPool.find(x=>!r.helpers.includes(x));if(h)r.helpers.push(h);else toast("No more sample neighbours to add.");renderDetail()}
+function pickStar(n){draftStars=n;document.querySelectorAll("#starRow button").forEach((b,i)=>b.classList.toggle("on",i<n));document.getElementById("doneBtn").disabled=false}
+function markDone(){const r=current;if(!r.chosen||!draftStars)return;r.status="done";r.chosen.sum+=draftStars;r.chosen.count++;r.rated=draftStars;r.review=document.getElementById("reviewText").value.trim();user.activity.unshift({t:"✓ Completed “"+r.title+"”",s:"Rated "+draftStars+"★",cls:"success"});draftStars=0;toast("Marked done. Thanks for rating "+r.chosen.name+"!");renderDetail()}
+function sendChat(e){e.preventDefault();const input=document.getElementById("chatInput"),m=input.value.trim();if(!m)return;const c=chatCtx();chats[c.key].push({mine:true,t:m});const b=document.createElement("div");b.className="bubble mine";b.textContent=m;const box=document.getElementById("chatbox");box.appendChild(b);input.value="";box.scrollTop=99999}
+
+function renderDetail(){
+  const r=current;if(!r)return;
+  const role=roleOf(r),own=role==="owner",p=own?user:r.poster,cap=s=>s[0].toUpperCase()+s.slice(1);
+  const statusLabel={open:"Open",progress:"In progress",done:"Done"}[r.status];
+  const banner={
+    visitor:`👀 You're viewing this as a <b>visitor</b>. Tap “I can help” to unlock chat with ${escapeHTML(r.poster.name)}.`,
+    helper:r.status==="done"?`✓ This request is done. Thanks for helping!`:`🙌 You offered to help. Chat with ${escapeHTML(r.poster.name)} to agree on the details.`,
+    owner:`📌 This is <b>your request</b>. Review offers, chat with your helper, then mark it done and rate them.`}[role];
+  let actions="";
+  if(role==="visitor")actions=`<button class="btn" onclick="offerHelp()">I can help</button><button class="btn ghost" onclick="toast('This request has been flagged for review.')">⚑ Report request</button>`;
+  if(role==="helper")actions=`<button class="btn ghost" onclick="withdraw()">Withdraw offer</button><button class="btn ghost" onclick="toast('This request has been flagged for review.')">⚑ Report request</button>`;
+  if(role==="owner")actions=`<button class="btn ghost" onclick="toast('Editing is a demo feature.')">✎ Edit request</button><button class="btn ghost" onclick="toast('Closing requests is a demo feature.')">Close request</button>`;
+  const extra=role==="helper"?`<div class="panel"><h3>Helping safely</h3><ul class="checklist"><li>Agree on details in the chat first.</li><li>Meet in a public place when possible.</li><li>Never share OTPs, passwords or card details.</li><li>Ask ${escapeHTML(r.poster.name)} to mark it done and rate you after.</li></ul></div>`:"";
+
+  let ownerCards="";
+  if(own){
+    const offersHtml=r.helpers.length?r.helpers.map((h,i)=>`<div class="offer${r.chosen===h?" chosen":""}"><span class="mini-av" style="width:36px;height:36px;font-size:15px">${initial(h.name)}</span><div class="info"><strong>${escapeHTML(h.name)}</strong><span class="muted small">${ratingBadge(h)} ${ratingNote(h)}</span></div>${r.chosen===h?'<span class="badge progress">✓ Accepted</span>':(r.chosen||r.status==="done"?"":`<button class="btn smallbtn" onclick="acceptHelper(${i})">Accept</button>`)}</div>`).join(""):`<div class="notice" style="margin-top:12px">No offers yet. Neighbours who tap “I can help” will show up here.</div>`;
+    ownerCards=`<div class="panel"><h2>Neighbours who offered help</h2><p class="muted small">${r.chosen?"You accepted a helper.":"Pick one to accept."}</p>${offersHtml}${r.helpers.length<helperPool.length&&!r.chosen?`<button class="btn ghost smallbtn" style="margin-top:12px" onclick="simulateOffer()">Demo: simulate a neighbour offering help</button>`:""}</div>`;
+    let rateBody;
+    if(r.status==="done")rateBody=`<div class="notice success">✓ Done. You rated <b>${escapeHTML(r.chosen.name)}</b> ${"★".repeat(r.rated)}${"☆".repeat(5-r.rated)}${r.review?`<br>“${escapeHTML(r.review)}”`:""}</div>`;
+    else if(!r.chosen)rateBody=`<div class="notice">Accept a helper above first. Then you can mark this request done and rate them.</div>`;
+    else rateBody=`<p class="muted small">How did <b>${escapeHTML(r.chosen.name)}</b> do? Your rating helps the community trust each other.</p><div class="stars" id="starRow">${[1,2,3,4,5].map(n=>`<button type="button" aria-label="${n} star${n>1?"s":""}" onclick="pickStar(${n})">★</button>`).join("")}</div><div class="field" style="margin:8px 0"><textarea id="reviewText" style="min-height:70px" maxlength="200" placeholder="Optional: say thanks or leave a short note"></textarea></div><button class="btn" id="doneBtn" onclick="markDone()" disabled style="width:100%">Mark done &amp; submit rating</button>`;
+    ownerCards+=`<div class="panel rate-card"><div class="eyebrow">Wrap up</div><h2>Mark done and rate</h2>${rateBody}</div>`;
+  }
+
+  const c=chatCtx();let chatHtml;
+  if(role==="visitor")chatHtml=`<div class="locked"><div class="lock">🔒</div><strong>Chat is locked</strong><span>Offer to help to start chatting with ${escapeHTML(r.poster.name)}.</span></div>`;
+  else if(own&&!r.chosen)chatHtml=`<div class="locked"><div class="lock">💬</div><strong>No chat yet</strong><span>Accept a helper to start chatting.</span></div>`;
+  else{if(!chats[c.key])chats[c.key]=[{mine:false,t:own?"Hi! I'd be happy to help with this.":"Hi! Thanks for offering to help. When are you free?"}];
+    chatHtml=`<p class="muted small">Chatting with <b>${escapeHTML(c.partner)}</b>. Keep it respectful and safe.</p><div class="chatbox" id="chatbox">${chats[c.key].map(m=>`<div class="bubble${m.mine?" mine":""}">${escapeHTML(m.t)}</div>`).join("")}</div><form class="chat-send" onsubmit="sendChat(event)"><input id="chatInput" placeholder="Write a message..." aria-label="Write a message"><button class="btn smallbtn">Send</button></form>`}
+
+  document.getElementById("detail").innerHTML=`
+  <button class="btn ghost smallbtn" onclick="showPage('home')" style="margin-bottom:14px">← Back to requests</button>
+  <div class="demo-switch"><span>Demo preview — view this screen as:</span><div class="seg">${["visitor","helper","owner"].map(x=>`<button class="${x===role?"active":""}" onclick="setRole('${x}')">${cap(x)}</button>`).join("")}</div></div>
+  <div class="role-banner ${role}">${banner}</div>
+  <div class="detail-layout">
+    <div class="col">
+      <div class="panel">
+        <div class="card-top"><span><span class="category">${icons[r.category]||"💚"} ${r.category.toUpperCase()}</span><span class="badge ${r.status}">${statusLabel}</span></span><span class="time">${r.time}</span></div>
+        <h1 style="font-size:30px">${escapeHTML(r.title)}</h1>
+        <p class="muted">${escapeHTML(r.description)}</p>
+        <div class="poster"><div class="pa">${initial(p.name)}</div><div style="flex:1"><strong>${escapeHTML(p.name)}${own?" (you)":""}</strong><span class="sub">${own?"Request owner":"Posted this request"} · ${ratingNote(p)}</span></div>${ratingBadge(p)}</div>
+        <div class="notice" style="margin:0 0 18px">📍 Please arrange a safe public meeting point.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">${actions}</div>
+      </div>
+      ${ownerCards}${extra}
+    </div>
+    <div class="col"><div class="panel"><h2>Neighbour chat</h2>${chatHtml}</div></div>
+  </div>`}
+
+/* ---------- Profile ---------- */
+function renderProfile(){document.getElementById("helpedCount").textContent=user.helped;document.getElementById("postedCount").textContent=user.posted;document.getElementById("ratingStat").textContent=user.count?"★ "+avg(user):"New";
+  document.getElementById("activityList").innerHTML=user.activity.length?user.activity.map(a=>`<div class="notice ${a.cls}" style="margin-top:10px">${escapeHTML(a.t)} <span class="muted">· ${escapeHTML(a.s)}</span></div>`).join(""):`<div class="notice" style="margin-top:15px">No activity yet. Post a request or help a neighbour to get started.</div>`}
+function updateUser(){const i=(user.name||"A").charAt(0).toUpperCase();document.getElementById("avatar").textContent=i;document.getElementById("profileInitial").textContent=i;document.getElementById("profileName").textContent=user.name;document.getElementById("profileArea").textContent=user.area;renderProfile()}
+
+/* ---------- Login / sign up ---------- */
+let signupMode=false;
+function setAuthMode(s){signupMode=s;const d=(id,v)=>document.getElementById(id).style.display=v?"block":"none";
+  d("nameField",s);d("confirmField",s);d("authError",false);
+  document.getElementById("authHeading").textContent=s?"Join your neighbours.":"Good to see you.";
+  document.getElementById("authSub").textContent=s?"Create an account to ask for and offer help nearby.":"Log in to connect with neighbours nearby.";
+  document.getElementById("authBtn").textContent=s?"Create account":"Log in";
+  document.getElementById("switchText").textContent=s?"Already have an account?":"New to Neighbourly?";
+  document.getElementById("switchLink").textContent=s?"Log in":"Sign up";
+  document.getElementById("authPass").setAttribute("autocomplete",s?"new-password":"current-password")}
+document.getElementById("authForm").addEventListener("submit",e=>{e.preventDefault();
+  const phone=document.getElementById("authPhone").value.trim(),pass=document.getElementById("authPass").value,err=document.getElementById("authError");err.style.display="none";
+  const fail=m=>{err.textContent=m;err.style.display="block"};
+  if(signupMode){const name=document.getElementById("authName").value.trim();
+    if(!name)return fail("Please enter your name.");
+    if(accounts[phone])return fail("An account with this phone number already exists. Try logging in.");
+    if(pass!==document.getElementById("authConfirm").value)return fail("Passwords don't match.");
+    accounts[phone]={name,pass,phone,area:"Multan",sum:0,count:0,helped:0,posted:0,activity:[]};user=accounts[phone]}
+  else{const a=accounts[phone];
+    if(a&&a.pass!==pass)return fail("Incorrect password.");
+    user=a||demoUser}
+  updateUser();document.body.classList.remove("loggedout");document.getElementById("authForm").reset();showPage("home");toast("Welcome, "+user.name.split(" ")[0]+"!")});
+function logout(){document.body.classList.add("loggedout");setAuthMode(false);showPage("auth");toast("You have been logged out.")}
+
+/* ---------- Emergency workflow ---------- */
+function setTab(name){document.querySelectorAll("#sosTabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));document.querySelectorAll(".tab-body").forEach(t=>t.classList.toggle("active",t.id==="tab-"+name))}
+document.querySelectorAll("#sosTabs button").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
+function openSOS(tab){document.getElementById("sosOverlay").classList.add("open");setTab(tab||"sos")}
+function closeSOS(){document.getElementById("sosOverlay").classList.remove("open");clearInterval(sosTimer);sosTimer=null;resetSOS()}
+function resetSOS(){document.getElementById("sosStatus").innerHTML='<strong>Tap SOS for quick access.</strong><br><span class="muted">Your emergency contacts and nearby neighbours will be alerted (demo).</span>'}
+function triggerSOS(){
+  if(sosTimer){clearInterval(sosTimer);sosTimer=null;resetSOS();return}
+  let n=3;const s=document.getElementById("sosStatus");
+  const paint=()=>{s.innerHTML='<strong style="color:var(--red2)">Alerting in '+n+'…</strong><br><span class="muted">Tap SOS again to cancel.</span>'};
+  paint();
+  sosTimer=setInterval(()=>{n--;if(n>0){paint();return}
+    clearInterval(sosTimer);sosTimer=null;
+    s.innerHTML='<strong style="color:var(--green)">✓ Alert sent (demo)</strong><br><span class="muted">Opening instructions and contacts…</span>';
+    setTimeout(()=>setTab("steps"),900)},1000)
+}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSOS()});
+updateUser();renderRequests();
+</script>
+</body>
+</html>
