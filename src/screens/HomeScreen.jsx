@@ -78,6 +78,16 @@ export default function HomeScreen({ onOpen }) {
 
           <h3>{r.title}</h3>
           <p className="muted">{r.description}</p>
+
+          {r.scam_flag && (
+            <p className="error">
+              ⚠️ BEWARE — VERIFY BEFORE ACCEPTING.
+              <br />
+              This request was flagged by HelpNest's safety checker.
+              Check the details carefully before offering help.
+            </p>
+          )}
+
           <p className="small muted">
             Posted by {r.users?.name || 'a neighbour'}
           </p>

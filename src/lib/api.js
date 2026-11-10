@@ -104,9 +104,10 @@ export async function listOpenRequests(category = null) {
     .from('requests')
     .select('*, users(name, rating)')
     .eq('status', 'open')
-    .eq('scam_flag', false)
     .order('created_at', { ascending: false })
+
   if (category) q = q.eq('category', category)
+
   return check(await q)
 }
 

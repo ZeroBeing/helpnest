@@ -90,12 +90,13 @@ export async function checkScamAI(title, description) {
 
     const result = await response.json()
 
-    return {
-      scamFlag: result.scamFlag === true,
-      reason: result.reason || '',
-      source: 'groq',
-      aiChecked: true,
-    }
+   return {
+  decision: result.decision || 'WARN',
+  scamFlag: result.scamFlag === true,
+  reason: result.reason || '',
+  source: 'groq',
+  aiChecked: true,
+}
   } catch (error) {
     console.error('Groq check failed:', error)
 

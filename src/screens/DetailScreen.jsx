@@ -147,6 +147,18 @@ export default function DetailScreen({ requestId, myId, onBack }) {
         <span className={'badge ' + request.status}>{STATUS_LABEL[request.status]}</span>
         <h2>{request.title}</h2>
         <p>{request.description}</p>
+        {request.scam_flag && (
+  <div className="error" style={{ padding: 12, marginTop: 12 }}>
+    <strong>⚠️ BEWARE — VERIFY BEFORE ACCEPTING</strong>
+    <p>
+      HelpNest's AI safety checker detected potentially suspicious content.
+      Carefully verify this request before offering help.
+    </p>
+    <p className="small">
+      Never share money, OTPs, passwords or bank details.
+    </p>
+  </div>
+)}
         <p className="small muted">
           Posted by {isOwner ? 'you' : request.users?.name || 'a neighbour'} <Rating value={request.users?.rating} />
         </p>
