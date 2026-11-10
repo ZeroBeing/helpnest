@@ -251,3 +251,50 @@ export async function reportRequest(requestId, reason) {
   const { error } = await supabase.from('reports').insert({ request_id: requestId, reporter_id, reason })
   if (error) throw new Error(error.message)
 }
+// ---------- ACCEPTING A HELPER ----------
+
+// Owner picks a helper: marks that response accepted, and the request becomes "matched".
+export async function acceptHelper(requestId, helperId) {
+  const reset = await supabase.from('responses').update({ accepted: false }).eq('request_id', requestId)
+  if (reset.error) throw new Error(reset.error.message)
+
+  const pick = await supabase
+    .from('responses')
+    .update({ accepted: true })
+    .eq('request_id', requestId)
+    .eq('helper_id', helperId)
+  if (pick.error) throw new Error(pick.error.message)
+
+  return setRequestStatus(requestId, 'matched')
+}
+
+// Who is the accepted helper? Returns null if nobody yet.
+export async function getAcceptedHelper(requestId) {
+  const { data, error } = await supabase
+    .from('responses')
+    .select('helper_id, users(name, rating)')
+    .eq('request_id', requestId)
+    .eq('accepted', true)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// ---------- LOGIN WITH PHONE NUMBER ----------
+// Supabase email login needs an email, but the prototype asks for a phone number.
+// This turns the phone number into a fake email. Use it in signUp and logIn.
+export function phoneToEmail(phone) {
+  return phone.replace(/\D/g, '') + '@neighbourly.app'
+}
+
+// ---------- RATINGS (replace the old submitRating) ----------
+export async function submitRating(requestId, ratedUserId, stars, review = '') {
+  const rater_id = await currentUserId()
+  return check(
+    await supabase
+      .from('ratings')
+      .insert({ request_id: requestId, rater_id, rated_id: ratedUserId, stars, review })
+      .select()
+      .single()
+  )
+}
