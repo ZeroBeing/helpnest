@@ -1,27 +1,22 @@
 import { useState } from 'react'
-import { signUp, logIn } from '../lib/api'
+import { signUp, logIn, phoneToEmail } from '../lib/api'
 
 export default function AuthScreen() {
   const [isSignup, setIsSignup] = useState(false)
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    setInfo('')
     setLoading(true)
     try {
+      const email = phoneToEmail(phone)
       if (isSignup) {
-        const result = await signUp(email, password, name)
-        // If email confirmation is still on, there is no session yet.
-        if (!result.session) {
-          setInfo('Account created. Check your email to confirm, then log in.')
-        }
+        await signUp(email, password, name)
       } else {
         await logIn(email, password)
       }
@@ -48,8 +43,8 @@ export default function AuthScreen() {
             </div>
           )}
           <div className="field">
-            <label>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <label>Phone number</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 1234567" required />
           </div>
           <div className="field">
             <label>Password (6+ characters)</label>
@@ -57,7 +52,6 @@ export default function AuthScreen() {
           </div>
 
           {error && <p className="error">{error}</p>}
-          {info && <p className="info">{info}</p>}
 
           <button className="btn" type="submit" disabled={loading}>
             {loading ? 'Please wait...' : isSignup ? 'Sign up' : 'Log in'}
@@ -66,7 +60,7 @@ export default function AuthScreen() {
 
         <p className="switch">
           {isSignup ? 'Already have an account?' : 'New here?'}{' '}
-          <button className="link" onClick={() => { setIsSignup(!isSignup); setError(''); setInfo('') }}>
+          <button className="link" onClick={() => { setIsSignup(!isSignup); setError('') }}>
             {isSignup ? 'Log in' : 'Create an account'}
           </button>
         </p>
