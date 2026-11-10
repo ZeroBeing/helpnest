@@ -4,7 +4,7 @@ import { listOpenRequests } from '../lib/api'
 const CATEGORIES = ['All', 'Groceries', 'Rides', 'Tools', 'Lost and Found', 'Other']
 const ICONS = { Groceries: '🛒', Rides: '🚗', Tools: '🔧', 'Lost and Found': '🔎', Other: '💚' }
 
-export default function HomeScreen() {
+export default function HomeScreen({ onOpen }) {
   const [filter, setFilter] = useState('All')
   const [requests, setRequests] = useState([])
   const [error, setError] = useState('')
@@ -42,6 +42,7 @@ export default function HomeScreen() {
           <h3>{r.title}</h3>
           <p className="muted">{r.description}</p>
           <p className="small muted">Posted by {r.users?.name || 'a neighbour'}</p>
+          <button className="btn secondary small" onClick={() => onOpen(r.id)}>View request →</button>
         </div>
       ))}
     </div>

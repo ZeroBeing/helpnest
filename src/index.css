@@ -41,3 +41,23 @@ body {
 .small { font-size: 13px; }
 .field textarea, .field select { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; font-family: inherit; background: #fff; }
 .field textarea { min-height: 110px; resize: vertical; }
+.btn.secondary { background: var(--mint); color: var(--green); }
+.btn.ghost { background: transparent; color: var(--green); border: 1px solid var(--line); }
+.badge { font-size: 11px; font-weight: 800; padding: 5px 9px; border-radius: 20px; margin-left: 6px; }
+.badge.open { background: var(--mint); color: var(--green); }
+.badge.matched { background: #fff0d1; color: #8a5a00; }
+.badge.done { background: #dfe7e2; color: #40524a; }
+.rate { font-weight: 700; color: #8a5a00; margin-left: 6px; }
+.rate.new { color: var(--muted); font-weight: 600; }
+.offer { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); gap: 10px; }
+.locked { display: flex; flex-direction: column; gap: 4px; text-align: center; }
+.chatbox { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 0; }
+.bubble { padding: 9px 13px; border-radius: 14px; max-width: 80%; font-size: 14px; }
+.bubble.mine { background: var(--green); color: #fff; align-self: flex-end; }
+.bubble.theirs { background: var(--mint); align-self: flex-start; }
+.chat-form { display: flex; gap: 8px; }
+.chat-form input { flex: 1; padding: 11px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; }
+.stars { display: flex; gap: 4px; margin: 10px 0; }
+.stars button { background: none; border: 0; font-size: 36px; line-height: 1; color: #d1d9d4; cursor: pointer; padding: 0 2px; }
+.stars button.on { color: #e9a817; }
+.info { margin: 12px 0; }
