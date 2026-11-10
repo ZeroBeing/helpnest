@@ -93,11 +93,11 @@ export async function checkScamAI(title, description) {
     return {
       scamFlag: result.scamFlag === true,
       reason: result.reason || '',
-      source: 'gemini',
+      source: 'groq',
       aiChecked: true,
     }
   } catch (error) {
-    console.error('Gemini check failed:', error)
+    console.error('Groq check failed:', error)
 
     const fallback = checkScam(title, description)
 
