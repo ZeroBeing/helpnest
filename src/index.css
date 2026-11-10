@@ -31,3 +31,13 @@ body {
 .page { max-width: 700px; margin: 0 auto; padding: 20px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+.nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.nav button { background: transparent; border: 0; padding: 8px 12px; border-radius: 10px; font-weight: 600; color: #5e6c63; cursor: pointer; }
+.nav button.active, .nav button:hover { background: var(--mint); color: var(--green); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 18px; }
+.chip { background: #fff; border: 1px solid var(--line); padding: 8px 13px; border-radius: 30px; color: #5d6b62; font-size: 13px; font-weight: 600; cursor: pointer; }
+.chip.active { background: var(--green); color: #fff; border-color: var(--green); }
+.category { font-size: 11px; font-weight: 800; letter-spacing: 0.6px; color: var(--green); background: var(--mint); padding: 6px 10px; border-radius: 20px; display: inline-block; margin-bottom: 8px; text-transform: uppercase; }
+.small { font-size: 13px; }
+.field textarea, .field select { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; font-family: inherit; background: #fff; }
+.field textarea { min-height: 110px; resize: vertical; }
