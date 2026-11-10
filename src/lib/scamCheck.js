@@ -1,5 +1,9 @@
+
 const RED_FLAGS = [
-  /send (me )?money/i,
+  /\b(need|needs|want|wants|request|requesting|looking for)\b.{0,30}\b(money|cash|funds|payment)\b/i,
+/\b(money|cash|funds|payment)\b.{0,30}\b(needed|required|requested)\b/i,
+  /\b(send|give|transfer|pay)\b.{0,30}\b(money|cash|funds|payment)\b/i,
+  /\b(money|cash|funds|payment)\b.{0,30}\b(send|give|transfer|pay)\b/i,
   /western union/i,
   /gift ?card/i,
   /bank (account|details)/i,
