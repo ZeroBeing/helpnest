@@ -127,3 +127,155 @@ body {
 .sos-nav-button:hover {
   background: #a51f1f !important;
 }
+
+/* Improved navigation spacing */
+.topbar {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.topbar > strong {
+  padding: 8px 0;
+  white-space: nowrap;
+}
+
+.nav {
+  flex: 1;
+  justify-content: flex-end;
+  gap: 8px;
+  row-gap: 10px;
+}
+
+.nav button {
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nav {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .nav button {
+    padding: 10px;
+    font-size: 13px;
+  }
+}
+
+/* Improved navigation spacing */
+.topbar {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.topbar > strong {
+  padding: 8px 0;
+  white-space: nowrap;
+}
+
+.nav {
+  flex: 1;
+  justify-content: flex-end;
+  gap: 8px;
+  row-gap: 10px;
+}
+
+.nav button {
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nav {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .nav button {
+    padding: 10px;
+    font-size: 13px;
+  }
+}
+
+.logout-button {
+  background: var(--green) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+}
+
+.logout-button:hover {
+  background: #174735 !important;
+}
+
+/* Larger HelpNest navigation area */
+.page {
+  max-width: 1000px;
+}
+
+.topbar {
+  width: 100%;
+  min-height: 110px;
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  align-items: center;
+  gap: 18px;
+}
+
+.topbar > strong {
+  font-size: 23px;
+  flex-shrink: 0;
+}
+
+.nav {
+  flex: 1;
+  justify-content: flex-end;
+  gap: 10px;
+  row-gap: 12px;
+}
+
+.nav button {
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    min-height: auto;
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  .nav {
+    justify-content: flex-start;
+  }
+}
+
+.nav .logout-button {
+  background: #174735 !important;
+  color: #ffffff !important;
+  border: 1px solid #174735 !important;
+  font-weight: 700 !important;
+  border-radius: 10px;
+}
+
+.nav .logout-button:hover {
+  background: #0f3829 !important;
+  color: #ffffff !important;
+}

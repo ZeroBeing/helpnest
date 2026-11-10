@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { getSession, logOut } from './lib/api'
+import { listMyOffers } from './lib/extra'
 import AuthScreen from './screens/AuthScreen'
 import HomeScreen from './screens/HomeScreen'
 import PostScreen from './screens/PostScreen'
@@ -17,6 +18,16 @@ export default function App() {
   const [backTo, setBackTo] = useState('home')
   const [showSOS, setShowSOS] = useState(false)
 
+  const [notifications, setNotifications] = useState([])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [seen, setSeen] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('helpnest-seen') || '[]')
+    } catch {
+      return []
+    }
+  })
+
   useEffect(() => {
     getSession().then((s) => {
       setSession(s)
@@ -31,22 +42,101 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (!session?.user?.id) return
+
+    let active = true
+
+    async function checkNotifications() {
+      try {
+        const userId = session.user.id
+
+        const [owned, offers] = await Promise.all([
+          supabase
+            .from('requests')
+            .select('id, title, status')
+            .eq('user_id', userId)
+            .eq('status', 'matched'),
+
+          listMyOffers(),
+        ])
+
+        if (owned.error) throw owned.error
+        if (!active) return
+
+        const items = []
+
+        owned.data.forEach((r) => {
+          items.push({
+            id: `owner-${r.id}`,
+            requestId: r.id,
+            title: 'Your request has a helper!',
+            message: `"${r.title}" has been matched.`,
+          })
+        })
+
+        offers.forEach((o) => {
+          if (o.accepted) {
+            items.push({
+              id: `helper-${o.id}`,
+              requestId: o.request_id,
+              title: 'Your offer was accepted!',
+              message: `The owner accepted your offer for "${o.requests?.title || 'a request'}".`,
+            })
+          } else if (o.requests?.status === 'matched') {
+            items.push({
+              id: `other-${o.id}`,
+              requestId: o.request_id,
+              title: 'Request already matched',
+              message: `"${o.requests?.title || 'This request'}" has another helper.`,
+            })
+          }
+        })
+
+        setNotifications(items)
+      } catch (error) {
+        console.error('Notification check failed:', error.message)
+      }
+    }
+
+    checkNotifications()
+    const timer = setInterval(checkNotifications, 10000)
+
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [session?.user?.id])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('helpnest-seen', JSON.stringify(seen))
+    } catch {
+      // Notifications still work for this session.
+    }
+  }, [seen])
+
+  useEffect(() => {
     function openSOS() {
       setShowSOS(true)
     }
 
     window.addEventListener('open-helpnest-sos', openSOS)
-
-    return () => {
-      window.removeEventListener('open-helpnest-sos', openSOS)
-    }
+    return () => window.removeEventListener('open-helpnest-sos', openSOS)
   }, [])
 
   function openRequest(id) {
     setBackTo(view === 'profile' ? 'profile' : 'home')
     setDetailId(id)
     setView('detail')
+    setShowNotifications(false)
   }
+
+  function openNotification(item) {
+    setSeen((prev) => [...new Set([...prev, item.id])])
+    openRequest(item.requestId)
+  }
+
+  const unread = notifications.filter((n) => !seen.includes(n.id)).length
 
   if (checking) return <p style={{ padding: 20 }}>Loading...</p>
   if (!session) return <AuthScreen />
@@ -57,41 +147,70 @@ export default function App() {
         <strong>🏡 HelpNest</strong>
 
         <div className="nav">
-          <button
-            className={view === 'home' ? 'active' : ''}
-            onClick={() => setView('home')}
-          >
+          <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}>
             Home
           </button>
 
-          <button
-            className={view === 'post' ? 'active' : ''}
-            onClick={() => setView('post')}
-          >
+          <button className={view === 'post' ? 'active' : ''} onClick={() => setView('post')}>
             Post a request
           </button>
 
-          <button
-            className={view === 'profile' ? 'active' : ''}
-            onClick={() => setView('profile')}
-          >
+          <button className={view === 'profile' ? 'active' : ''} onClick={() => setView('profile')}>
             Profile
           </button>
-<button
-  onClick={() => setShowSOS(true)}
-  className="sos-nav-button"
->
-  🚨 SOS
+
+          <button onClick={() => setShowNotifications(!showNotifications)}>
+            🔔 Notifications {unread > 0 ? `(${unread})` : ''}
+          </button>
+
+          <button onClick={() => setShowSOS(true)} className="sos-nav-button">
+            🚨 SOS
+          </button>
+
+          <button className="logout-button" onClick={logOut}>
+  ↪ Log out
 </button>
-          <button onClick={logOut}>Log out</button>
         </div>
       </div>
 
+      {showNotifications && (
+        <div className="card" style={{ margin: '12px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <h3>🔔 Notifications</h3>
+            <button className="link" onClick={() => setShowNotifications(false)}>Close</button>
+          </div>
+
+          {notifications.length === 0 && (
+            <p className="muted">No notifications yet.</p>
+          )}
+
+          {notifications.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => openNotification(item)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: 12,
+                marginBottom: 8,
+                border: '1px solid var(--line)',
+                borderRadius: 10,
+                background: seen.includes(item.id) ? 'white' : 'var(--mint)',
+                cursor: 'pointer',
+              }}
+            >
+              <strong>{item.title}</strong>
+              <p className="small">{item.message}</p>
+              {!seen.includes(item.id) && <span className="small">● New</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
       {view === 'home' && <HomeScreen onOpen={openRequest} />}
 
-      {view === 'post' && (
-        <PostScreen onDone={() => setView('home')} />
-      )}
+      {view === 'post' && <PostScreen onDone={() => setView('home')} />}
 
       {view === 'profile' && (
         <ProfileScreen myId={session.user.id} onOpen={openRequest} />
