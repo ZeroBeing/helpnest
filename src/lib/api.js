@@ -14,9 +14,15 @@ async function currentUserId() {
   return data.user.id
 }
 
-// ---------- AUTH (email) ----------
+// ---------- AUTH (phone number & email helper) ----------
 
-// The name is saved in user metadata; a database trigger copies it into the users table.
+export function phoneToEmail(phone) {
+  let digits = String(phone).replace(/\D/g, '')
+  if (digits.startsWith('0')) digits = '92' + digits.slice(1) // 0300... -> 92300...
+  if (digits.length < 8) throw new Error('Please enter a valid phone number')
+  return `${digits}@neighbourly.app`
+}
+
 export async function signUp(email, password, name) {
   return check(
     await supabase.auth.signUp({ email, password, options: { data: { name } } })
@@ -25,18 +31,6 @@ export async function signUp(email, password, name) {
 
 export async function logIn(email, password) {
   return check(await supabase.auth.signInWithPassword({ email, password }))
-}
-
-// ---------- AUTH (phone number, no SMS needed) ----------
-// The design asks for a phone number. Real SMS login costs money, so we turn the phone
-// number into a hidden email address. Users only ever see and type their phone number.
-// "Confirm email" must stay OFF in Supabase (Authentication > Providers > Email).
-
-export function phoneToEmail(phone) {
-  let digits = String(phone).replace(/\D/g, '')
-  if (digits.startsWith('0')) digits = '92' + digits.slice(1) // 0300... -> 92300...
-  if (digits.length < 8) throw new Error('Please enter a valid phone number')
-  return `${digits}@neighbourly.app`
 }
 
 export async function signUpWithPhone(phone, password, name) {
@@ -65,8 +59,6 @@ export async function getProfile(userId) {
   )
 }
 
-// Everything the profile screen's three stat boxes need, in one call.
-// peopleHelped = number of ratings this user has received as a helper.
 export async function getProfileStats(userId) {
   const profile = await getProfile(userId)
 
@@ -84,7 +76,7 @@ export async function getProfileStats(userId) {
 
   return {
     name: profile.name,
-    rating: Number(profile.rating), // 0 means "no ratings yet"
+    rating: Number(profile.rating),
     peopleHelped: helped.count ?? 0,
     requestsPosted: posted.count ?? 0,
   }
@@ -92,9 +84,6 @@ export async function getProfileStats(userId) {
 
 // ---------- REQUESTS ----------
 
-// category and scamFlag come from Hamza's AI check (pass them in after the AI runs).
-// area and urgent are OPTIONAL and only work if the group adds those columns
-// (see the optional SQL). If you don't pass them, nothing changes.
 export async function createRequest({
   title,
   description,
@@ -110,7 +99,6 @@ export async function createRequest({
   return check(await supabase.from('requests').insert(row).select().single())
 }
 
-// Home screen list. Hides flagged scams. Optional category filter.
 export async function listOpenRequests(category = null) {
   let q = supabase
     .from('requests')
@@ -132,7 +120,6 @@ export async function getRequest(requestId) {
   )
 }
 
-// Requests posted by the logged-in user (profile screen). Includes flagged ones.
 export async function listMyRequests() {
   const user_id = await currentUserId()
   return check(
@@ -140,7 +127,6 @@ export async function listMyRequests() {
   )
 }
 
-// Only the request owner can do this (enforced by the database).
 export async function setRequestStatus(requestId, status) {
   return check(
     await supabase.from('requests').update({ status }).eq('id', requestId).select().single()
@@ -156,7 +142,6 @@ export async function offerHelp(requestId) {
   )
 }
 
-// Visible to the request owner and the helper themselves.
 export async function listResponses(requestId) {
   return check(
     await supabase
@@ -166,30 +151,50 @@ export async function listResponses(requestId) {
   )
 }
 
-// Tells the request screen what to show this user:
-//   'owner'  -> their own request: show helpers list, chat, "Mark done and rate"
-//   'helper' -> they already offered help: show chat
-//   'none'   -> show the "I can help" button, no chat
 export async function getMyRole(requestId) {
   const userId = await currentUserId()
-  const req = check(
-    await supabase.from('requests').select('user_id').eq('id', requestId).single()
-  )
+  const reqData = await supabase.from('requests').select('user_id').eq('id', requestId).single()
+  const req = check(reqData)
   if (req.user_id === userId) return 'owner'
 
-  const mine = check(
-    await supabase
-      .from('responses')
-      .select('id')
-      .eq('request_id', requestId)
-      .eq('helper_id', userId)
-      .maybeSingle()
-  )
+  const mineData = await supabase
+    .from('responses')
+    .select('id')
+    .eq('request_id', requestId)
+    .eq('helper_id', userId)
+    .maybeSingle()
+  const mine = check(mineData)
   return mine ? 'helper' : 'none'
 }
 
+// ---------- ACCEPTING A HELPER ----------
+
+export async function acceptHelper(requestId, helperId) {
+  const reset = await supabase.from('responses').update({ accepted: false }).eq('request_id', requestId)
+  if (reset.error) throw new Error(reset.error.message)
+
+  const pick = await supabase
+    .from('responses')
+    .update({ accepted: true })
+    .eq('request_id', requestId)
+    .eq('helper_id', helperId)
+  if (pick.error) throw new Error(pick.error.message)
+
+  return setRequestStatus(requestId, 'matched')
+}
+
+export async function getAcceptedHelper(requestId) {
+  const { data, error } = await supabase
+    .from('responses')
+    .select('helper_id, users(name, rating)')
+    .eq('request_id', requestId)
+    .eq('accepted', true)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data
+}
+
 // ---------- MESSAGES (chat) ----------
-// Only the request owner and helpers who offered help can read/write.
 
 export async function sendMessage(requestId, text) {
   const sender_id = await currentUserId()
@@ -208,9 +213,6 @@ export async function loadMessages(requestId) {
   )
 }
 
-// Live chat. Call it once when the chat opens; it returns a function to stop listening.
-// Example: const stop = subscribeToMessages(id, (msg) => setMessages((m) => [...m, msg]))
-// Call stop() when the screen closes.
 export function subscribeToMessages(requestId, onNewMessage) {
   const channel = supabase
     .channel(`messages-${requestId}`)
@@ -224,24 +226,21 @@ export function subscribeToMessages(requestId, onNewMessage) {
 }
 
 // ---------- RATINGS ----------
-// A database trigger updates users.rating as the average automatically.
 
-export async function submitRating(requestId, ratedUserId, stars) {
+export async function submitRating(requestId, ratedUserId, stars, review = '') {
   const rater_id = await currentUserId()
   return check(
     await supabase
       .from('ratings')
-      .insert({ request_id: requestId, rater_id, rated_id: ratedUserId, stars })
+      .insert({ request_id: requestId, rater_id, rated_id: ratedUserId, stars, review })
       .select()
       .single()
   )
 }
 
-// The "Mark done and rate" button: owner picks a helper, gives 1-5 stars.
-// Marks the request done, then saves the rating.
-export async function completeRequest(requestId, helperId, stars) {
+export async function completeRequest(requestId, helperId, stars, review = '') {
   await setRequestStatus(requestId, 'done')
-  return submitRating(requestId, helperId, stars)
+  return submitRating(requestId, helperId, stars, review)
 }
 
 // ---------- REPORTS ----------
