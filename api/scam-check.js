@@ -27,7 +27,15 @@ Details: ${description}`
         }),
       }
     )
-    if (!r.ok) return res.status(502).json({ error: 'AI service error' })
+    if (!r.ok) {
+  const errorDetails = await r.text()
+  console.error('Gemini API error:', r.status, errorDetails)
+  return res.status(502).json({
+    error: 'AI service error',
+    status: r.status,
+    details: errorDetails
+  })
+}
 
     const data = await r.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
