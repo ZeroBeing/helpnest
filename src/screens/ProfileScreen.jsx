@@ -1,9 +1,17 @@
 
 import { useEffect, useState } from 'react'
-import { getProfileStats, listMyRequests } from '../lib/api'
+import {
+  getProfileStats,
+  listMyRequests,
+  deleteRequest
+} from '../lib/api'
 import { listMyOffers } from '../lib/extra'
 
-const STATUS_LABEL = { open: 'Open', matched: 'In progress', done: 'Done' }
+const STATUS_LABEL = {
+  open: 'Open',
+  matched: 'In progress',
+  done: 'Done'
+}
 
 function offerLabel(o) {
   const status = o.requests?.status
@@ -14,19 +22,10 @@ function offerLabel(o) {
 }
 
 function getTrustStatus(rating, count) {
-  if (count < 3) {
-    return { label: count === 0 ? 'New user' : 'Building reputation', warning: false }
-  }
-
-  if (rating < 1.5) {
-    return { label: '🚨 Very low rating — Proceed with caution', warning: true }
-  }
-
-  if (rating < 2.5) {
-    return { label: '⚠️ Weak rating — Be careful', warning: true }
-  }
-
-  return { label: '⭐ Normal reputation', warning: false }
+  if (!count) return 'New member'
+  if (rating >= 4.5) return 'Trusted helper'
+  if (rating >= 3.5) return 'Good helper'
+  return 'Building reputation'
 }
 
 export default function ProfileScreen({ myId, onOpen }) {
@@ -34,71 +33,153 @@ export default function ProfileScreen({ myId, onOpen }) {
   const [mine, setMine] = useState([])
   const [offers, setOffers] = useState([])
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
-    Promise.all([getProfileStats(myId), listMyRequests(), listMyOffers()])
+    let active = true
+
+    Promise.all([
+      getProfileStats(myId),
+      listMyRequests(),
+      listMyOffers()
+    ])
       .then(([s, m, o]) => {
+        if (!active) return
         setStats(s)
         setMine(m)
         setOffers(o)
       })
-      .catch((e) => setError(e.message))
+      .catch(e => {
+        if (active) setError(e.message)
+      })
+
+    return () => {
+      active = false
+    }
   }, [myId])
 
-  if (error) return <p className="error">{error}</p>
-  if (!stats) return <p className="muted">Loading...</p>
+  async function handleDelete(id, title) {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${title}"?`
+    )
+
+    if (!confirmed) return
+
+    try {
+      setDeletingId(id)
+      setError('')
+
+      await deleteRequest(id)
+
+      setMine(previous => previous.filter(r => r.id !== id))
+
+      setStats(previous => ({
+        ...previous,
+        requestsPosted: Math.max(
+          0,
+          (previous.requestsPosted || 0) - 1
+        )
+      }))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  if (error && !stats) {
+    return <p className="error">{error}</p>
+  }
+
+  if (!stats) {
+    return <p className="muted">Loading...</p>
+  }
 
   const trust = getTrustStatus(stats.rating, stats.peopleHelped)
 
   return (
     <div>
+      {error && <p className="error">{error}</p>}
+
       <div className="card">
-        <h2>{stats.name}</h2>
-
-        <p>
-          ⭐ {stats.rating > 0 ? stats.rating.toFixed(1) : 'New'}
-        </p>
-
-        <p className={trust.warning ? 'error' : 'info'}>
-          {trust.label}
-        </p>
-
-        <p className="small muted">
-          {stats.peopleHelped} ratings received · {stats.requestsPosted} requests posted
-        </p>
-
-        {stats.peopleHelped < 3 && (
-          <p className="small muted">
-            Trust status becomes active after 3 ratings.
-          </p>
-        )}
+        <h2>My Profile</h2>
+        <p>⭐ {Number(stats.rating || 0).toFixed(1)} rating</p>
+        <p>{stats.peopleHelped || 0} people helped</p>
+        <p>{trust}</p>
+        <p>{stats.requestsPosted || 0} requests posted</p>
       </div>
 
       <h3>Requests I offered help on</h3>
-      {offers.length === 0 && <p className="muted">No offers yet.</p>}
-      {offers.map((o) => (
+
+      {offers.map(o => (
         <div className="card" key={o.id}>
-          <span className={'badge ' + (o.requests?.status || 'open')}>
-            {offerLabel(o)}
-          </span>
-          <h3>{o.requests?.title}</h3>
-          <button className="btn secondary small" onClick={() => onOpen(o.request_id)}>
-            View request →
-          </button>
+          <h3>{o.requests?.title || 'Request'}</h3>
+          <p>{offerLabel(o)}</p>
+
+          {o.request_id && (
+            <button
+              className="btn secondary small"
+              onClick={() => onOpen(o.request_id)}
+            >
+              View request →
+            </button>
+          )}
         </div>
       ))}
 
       <h3>My requests</h3>
-      {mine.length === 0 && <p className="muted">You haven't posted anything yet.</p>}
-      {mine.map((r) => (
+
+      {mine.length === 0 && (
+        <p className="muted">You haven't posted any requests yet.</p>
+      )}
+
+      {mine.map(r => (
         <div className="card" key={r.id}>
-          <span className={'badge ' + r.status}>{STATUS_LABEL[r.status]}</span>
+          <span className={'badge ' + r.status}>
+            {STATUS_LABEL[r.status] || r.status}
+          </span>
+
           <h3>{r.title}</h3>
-          <button className="btn secondary small" onClick={() => onOpen(r.id)}>
-            View request →
-          </button>
+
+          <div className="request-actions">
+            <button
+              className="btn secondary small"
+              onClick={() => onOpen(r.id)}
+            >
+              View request →
+            </button>
+
+            <button
+              className="btn delete-button small"
+              disabled={deletingId === r.id}
+              onClick={() => handleDelete(r.id, r.title)}
+            >
+              {deletingId === r.id ? 'Deleting...' : '🗑 Delete'}
+            </button>
+          </div>
         </div>
       ))}
+
+      <style>{`
+        .request-actions {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          margin-top: 12px;
+        }
+
+        .delete-button {
+          background: #dc2626 !important;
+          color: white !important;
+          border: 1px solid #dc2626 !important;
+          font-weight: 700;
+        }
+
+        .delete-button:hover {
+          background: #b91c1c !important;
+        }
+      `}</style>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 
 import { useState } from 'react'
 import { createRequest } from '../lib/api'
-import { checkScam, checkScamAI } from '../lib/scamCheck'
+import { checkScamAI } from '../lib/scamCheck'
 
 const CATEGORIES = ['Groceries', 'Rides', 'Tools', 'Lost and Found', 'Other']
 
@@ -11,13 +11,26 @@ export default function PostScreen({ onDone }) {
   const [category, setCategory] = useState('Groceries')
   const [decision, setDecision] = useState('')
   const [warningReason, setWarningReason] = useState('')
+  const [safetyNotice, setSafetyNotice] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   function resetCheck() {
     setDecision('')
     setWarningReason('')
+    setSafetyNotice('')
     setError('')
+  }
+
+  async function publishRequest(flagged) {
+    await createRequest({
+      title,
+      description,
+      category,
+      scamFlag: flagged,
+    })
+
+    onDone()
   }
 
   async function handleSubmit(e) {
@@ -29,62 +42,46 @@ export default function PostScreen({ onDone }) {
     setLoading(true)
 
     try {
-      // If the request has not been checked yet, run AI safety checks.
-      if (!decision) {
-        const aiResult = await checkScamAI(title, description)
-        const manualResult = checkScam(title, description)
+      // Second submission: user confirms a warning or offline notice.
+      if (decision === 'WARN' || decision === 'OFFLINE') {
+  await publishRequest(true)
+  return
+}
 
-        let resultDecision = aiResult.decision
-
-        // Backup checker: suspicious phrases receive a warning.
-        if (manualResult.scamFlag && resultDecision !== 'BLOCK') {
-          resultDecision = 'WARN'
-        }
-
-        // If AI is unavailable, use the manual checker.
-        if (!resultDecision) {
-          resultDecision = manualResult.scamFlag ? 'WARN' : 'ALLOW'
-        }
-
-        setDecision(resultDecision)
-        setWarningReason(aiResult.reason || 'Please verify this request carefully.')
-
-        if (resultDecision === 'BLOCK') {
-          setError(
-            aiResult.reason ||
-            'Requests asking neighbours for money or payments are not allowed on HelpNest.'
-          )
-          return
-        }
-
-        if (resultDecision === 'WARN') {
-          return
-        }
-      } else if (decision === 'BLOCK') {
-        setError('This request cannot be posted because it violates HelpNest free-help rules.')
-        return
-      } else if (decision === 'WARN') {
-        // User has acknowledged the warning by submitting again.
-        await createRequest({
-          title,
-          description,
-          category,
-          scamFlag: true,
-        })
-
-        onDone()
+      if (decision === 'BLOCK') {
+        setError('This request cannot be posted. Please edit it.')
         return
       }
 
-      // Normal request.
-      await createRequest({
-        title,
-        description,
-        category,
-        scamFlag: false,
-      })
+      // First submission: run safety checks.
+      const result = await checkScamAI(title, description)
 
-      onDone()
+      setDecision(result.decision)
+      setWarningReason(
+        result.reason || 'Please verify this request carefully.'
+      )
+
+      if (!result.aiChecked) {
+        setDecision('OFFLINE')
+        setSafetyNotice(
+          'AI moderation is currently unavailable. Only limited offline safety checks were used. They cannot detect every harmful or suspicious request. Please review your request carefully.'
+        )
+        return
+      }
+
+      if (result.decision === 'BLOCK') {
+        setError(
+          result.reason || 'This request violates HelpNest safety rules.'
+        )
+        return
+      }
+
+      if (result.decision === 'WARN') {
+        return
+      }
+
+      // AI and offline checks both passed.
+      await publishRequest(false)
     } catch (err) {
       setError(err.message || 'Something went wrong.')
     } finally {
@@ -95,6 +92,7 @@ export default function PostScreen({ onDone }) {
   return (
     <div>
       <h2>Ask your neighbours for help</h2>
+
       <p className="muted">
         Free help only. Never share money, bank details or passwords.
       </p>
@@ -139,22 +137,29 @@ export default function PostScreen({ onDone }) {
           />
         </div>
 
+        {decision === 'OFFLINE' && (
+          <div className="error">
+            <strong>⚠️ AI SAFETY CHECK UNAVAILABLE</strong>
+            <p>{safetyNotice}</p>
+            <p>Your request has not been published yet.</p>
+            <p>You can edit it or confirm to post.</p>
+          </div>
+        )}
+
         {decision === 'WARN' && (
-          <p className="error">
-            ⚠️ Beware — Verify Before Accepting.
-            <br />
-            {warningReason}
-            <br />
-            You may post this request, but neighbours will see this warning.
-            Only continue if your request is genuine.
-          </p>
+          <div className="error">
+            <strong>⚠️ BEWARE — VERIFY BEFORE ACCEPTING</strong>
+            <p>{warningReason}</p>
+            <p>
+              Your request has not been published yet.
+              If you continue, neighbours will see a safety warning.
+            </p>
+          </div>
         )}
 
         {decision === 'BLOCK' && (
           <p className="error">
-            🚫 This request is not allowed.
-            <br />
-            HelpNest is exclusively for free neighbour help.
+            🚫 This request is not allowed. Please edit it.
           </p>
         )}
 
@@ -164,10 +169,12 @@ export default function PostScreen({ onDone }) {
           {loading
             ? 'Checking safety...'
             : decision === 'WARN'
-              ? 'I Understand — Post Request'
-              : decision === 'BLOCK'
-                ? 'Edit Request'
-                : 'Check with AI and post'}
+              ? 'I Understand — Post Flagged Request'
+              : decision === 'OFFLINE'
+                ? 'I Understand — Post Anyway'
+                : decision === 'BLOCK'
+                  ? 'Check Edited Request'
+                  : 'Check safety and post'}
         </button>
       </form>
     </div>

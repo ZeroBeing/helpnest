@@ -1,6 +1,9 @@
+
 // src/lib/api.js
 // Owner: Ahmed. Login + saving/loading data. Hamza's screens call these functions.
 // Every function returns the data, or throws an Error with a readable message.
+
+import { checkContentAI } from './scamCheck'
 import { supabase } from './supabaseClient'
 
 function check({ data, error }) {
@@ -14,18 +17,22 @@ async function currentUserId() {
   return data.user.id
 }
 
-// ---------- AUTH (phone number & email helper) ----------
+// ---------- AUTH ----------
 
 export function phoneToEmail(phone) {
   let digits = String(phone).replace(/\D/g, '')
-  if (digits.startsWith('0')) digits = '92' + digits.slice(1) // 0300... -> 92300...
+  if (digits.startsWith('0')) digits = '92' + digits.slice(1)
   if (digits.length < 8) throw new Error('Please enter a valid phone number')
   return `${digits}@neighbourly.app`
 }
 
 export async function signUp(email, password, name) {
   return check(
-    await supabase.auth.signUp({ email, password, options: { data: { name } } })
+    await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
+    })
   )
 }
 
@@ -55,7 +62,11 @@ export async function getSession() {
 
 export async function getProfile(userId) {
   return check(
-    await supabase.from('users').select('id, name, phone_verified, rating').eq('id', userId).single()
+    await supabase
+      .from('users')
+      .select('id, name, phone_verified, rating')
+      .eq('id', userId)
+      .single()
   )
 }
 
@@ -66,12 +77,15 @@ export async function getProfileStats(userId) {
     .from('ratings')
     .select('id', { count: 'exact', head: true })
     .eq('rated_id', userId)
+
   if (helped.error) throw new Error(helped.error.message)
 
   const posted = await supabase
     .from('requests')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
+    .is('deleted_at', null)
+
   if (posted.error) throw new Error(posted.error.message)
 
   return {
@@ -93,10 +107,21 @@ export async function createRequest({
   urgent,
 }) {
   const user_id = await currentUserId()
-  const row = { user_id, title, description, category, scam_flag: scamFlag }
+
+  const row = {
+    user_id,
+    title,
+    description,
+    category,
+    scam_flag: scamFlag,
+  }
+
   if (area !== undefined) row.area = area
   if (urgent !== undefined) row.urgent = urgent
-  return check(await supabase.from('requests').insert(row).select().single())
+
+  return check(
+    await supabase.from('requests').insert(row).select().single()
+  )
 }
 
 export async function listOpenRequests(category = null) {
@@ -104,6 +129,7 @@ export async function listOpenRequests(category = null) {
     .from('requests')
     .select('*, users(name, rating)')
     .eq('status', 'open')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   if (category) q = q.eq('category', category)
@@ -117,29 +143,65 @@ export async function getRequest(requestId) {
       .from('requests')
       .select('*, users(name, rating)')
       .eq('id', requestId)
+      .is('deleted_at', null)
       .single()
   )
 }
 
 export async function listMyRequests() {
   const user_id = await currentUserId()
+
   return check(
-    await supabase.from('requests').select('*').eq('user_id', user_id).order('created_at', { ascending: false })
+    await supabase
+      .from('requests')
+      .select('*')
+      .eq('user_id', user_id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
   )
 }
 
 export async function setRequestStatus(requestId, status) {
   return check(
-    await supabase.from('requests').update({ status }).eq('id', requestId).select().single()
+    await supabase
+      .from('requests')
+      .update({ status })
+      .eq('id', requestId)
+      .is('deleted_at', null)
+      .select()
+      .single()
   )
 }
 
-// ---------- RESPONSES (offering help) ----------
+// SOFT DELETE: preserves the request and its related records.
+
+export async function deleteRequest(requestId) {
+  const user_id = await currentUserId()
+
+  const { data, error } = await supabase
+    .from('requests')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .eq('user_id', user_id)
+    .is('deleted_at', null)
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// ---------- RESPONSES ----------
 
 export async function offerHelp(requestId) {
   const helper_id = await currentUserId()
+
   return check(
-    await supabase.from('responses').insert({ request_id: requestId, helper_id }).select().single()
+    await supabase
+      .from('responses')
+      .insert({ request_id: requestId, helper_id })
+      .select()
+      .single()
   )
 }
 
@@ -154,8 +216,16 @@ export async function listResponses(requestId) {
 
 export async function getMyRole(requestId) {
   const userId = await currentUserId()
-  const reqData = await supabase.from('requests').select('user_id').eq('id', requestId).single()
+
+  const reqData = await supabase
+    .from('requests')
+    .select('user_id')
+    .eq('id', requestId)
+    .is('deleted_at', null)
+    .single()
+
   const req = check(reqData)
+
   if (req.user_id === userId) return 'owner'
 
   const mineData = await supabase
@@ -164,14 +234,20 @@ export async function getMyRole(requestId) {
     .eq('request_id', requestId)
     .eq('helper_id', userId)
     .maybeSingle()
+
   const mine = check(mineData)
+
   return mine ? 'helper' : 'none'
 }
 
 // ---------- ACCEPTING A HELPER ----------
 
 export async function acceptHelper(requestId, helperId) {
-  const reset = await supabase.from('responses').update({ accepted: false }).eq('request_id', requestId)
+  const reset = await supabase
+    .from('responses')
+    .update({ accepted: false })
+    .eq('request_id', requestId)
+
   if (reset.error) throw new Error(reset.error.message)
 
   const pick = await supabase
@@ -179,6 +255,7 @@ export async function acceptHelper(requestId, helperId) {
     .update({ accepted: true })
     .eq('request_id', requestId)
     .eq('helper_id', helperId)
+
   if (pick.error) throw new Error(pick.error.message)
 
   return setRequestStatus(requestId, 'matched')
@@ -191,16 +268,45 @@ export async function getAcceptedHelper(requestId) {
     .eq('request_id', requestId)
     .eq('accepted', true)
     .maybeSingle()
+
   if (error) throw new Error(error.message)
   return data
 }
 
-// ---------- MESSAGES (chat) ----------
+// ---------- MESSAGES / CHAT ----------
 
 export async function sendMessage(requestId, text) {
   const sender_id = await currentUserId()
+  const messageText = String(text || '').trim()
+
+  if (!messageText) {
+    throw new Error('Message cannot be empty')
+  }
+
+  const moderation = await checkContentAI(messageText)
+
+  if (moderation.decision === 'BLOCK') {
+    throw new Error(
+      moderation.reason || 'This message violates HelpNest safety rules.'
+    )
+  }
+
+  if (moderation.decision === 'WARN') {
+    throw new Error(
+      moderation.reason || 'This message needs review and cannot be sent.'
+    )
+  }
+
   return check(
-    await supabase.from('messages').insert({ request_id: requestId, sender_id, text }).select().single()
+    await supabase
+      .from('messages')
+      .insert({
+        request_id: requestId,
+        sender_id,
+        text: messageText,
+      })
+      .select()
+      .single()
   )
 }
 
@@ -219,27 +325,50 @@ export function subscribeToMessages(requestId, onNewMessage) {
     .channel(`messages-${requestId}`)
     .on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages', filter: `request_id=eq.${requestId}` },
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `request_id=eq.${requestId}`,
+      },
       (payload) => onNewMessage(payload.new)
     )
     .subscribe()
+
   return () => supabase.removeChannel(channel)
 }
 
 // ---------- RATINGS ----------
 
-export async function submitRating(requestId, ratedUserId, stars, review = '') {
+export async function submitRating(
+  requestId,
+  ratedUserId,
+  stars,
+  review = ''
+) {
   const rater_id = await currentUserId()
+
   return check(
     await supabase
       .from('ratings')
-      .insert({ request_id: requestId, rater_id, rated_id: ratedUserId, stars, review })
+      .insert({
+        request_id: requestId,
+        rater_id,
+        rated_id: ratedUserId,
+        stars,
+        review,
+      })
       .select()
       .single()
   )
 }
 
-export async function completeRequest(requestId, helperId, stars, review = '') {
+export async function completeRequest(
+  requestId,
+  helperId,
+  stars,
+  review = ''
+) {
   await setRequestStatus(requestId, 'done')
   return submitRating(requestId, helperId, stars, review)
 }
@@ -248,6 +377,10 @@ export async function completeRequest(requestId, helperId, stars, review = '') {
 
 export async function reportRequest(requestId, reason) {
   const reporter_id = await currentUserId()
-  const { error } = await supabase.from('reports').insert({ request_id: requestId, reporter_id, reason })
+
+  const { error } = await supabase
+    .from('reports')
+    .insert({ request_id: requestId, reporter_id, reason })
+
   if (error) throw new Error(error.message)
 }
