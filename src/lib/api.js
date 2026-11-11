@@ -5,19 +5,13 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Safe wrapper for Supabase responses
-function check({ data, error }) {
-  if (error) throw error
-  return data
-}
-
 // --------------------------------------------------
 // AI Moderation & Profanity Guard
 // --------------------------------------------------
 const BANNED_KEYWORDS = [
   'scam', 'send money', 'wire transfer', 'crypto', 'bitcoin',
   'gift card', 'otp', 'password', 'bank account',
-  'abuse', 'profanity', 'hate', 'harass'
+  'abuse', 'profanity', 'hate', 'harass' // expand as needed
 ]
 
 export function checkContentSafety(text) {
@@ -25,9 +19,15 @@ export function checkContentSafety(text) {
   const lower = text.toLowerCase()
   const found = BANNED_KEYWORDS.find(word => lower.includes(word))
   if (found) {
-    return { safe: false, reason: `Content contains forbidden term: "${found}"` }
+    return { safe: false, reason: `Content contains forbidden terms ("${found}")` }
   }
   return { safe: true }
+}
+
+// Helper wrapper for Supabase responses
+function check({ data, error }) {
+  if (error) throw error
+  return data
 }
 
 // --------------------------------------------------
@@ -41,6 +41,7 @@ export async function getCurrentUserProfile() {
     await supabase.from('users').select('*').eq('id', user.id).single()
   )
 
+  // Check account restriction status
   if (profile && (profile.status === 'banned' || profile.status === 'suspended')) {
     throw new Error(`Account is ${profile.status}. Access restricted.`)
   }
@@ -49,6 +50,7 @@ export async function getCurrentUserProfile() {
 }
 
 export async function getProfileStats(userId) {
+  // Fetch overall rating and total review count
   const profile = check(
     await supabase.from('users').select('name, rating').eq('id', userId).single()
   )
@@ -64,13 +66,13 @@ export async function getProfileStats(userId) {
 }
 
 // --------------------------------------------------
-// 2. Help Requests
+// 2. Help Requests (Hides completed 'done' requests)
 // --------------------------------------------------
 export async function listOpenRequests(category = null) {
   let q = supabase
     .from('requests')
     .select('*, users(name, rating)')
-    .eq('status', 'open')
+    .eq('status', 'open') // Hides 'done' and 'matched' requests from public feed
     .eq('scam_flag', false)
     .order('created_at', { ascending: false })
 
@@ -79,6 +81,7 @@ export async function listOpenRequests(category = null) {
 }
 
 export async function createRequest({ title, description, category, area = 'Multan' }) {
+  // AI Moderation check
   const titleCheck = checkContentSafety(title)
   const descCheck = checkContentSafety(description)
 
@@ -121,7 +124,7 @@ export async function sendMessage(requestId, text) {
 }
 
 // --------------------------------------------------
-// 4. Notifications
+// 4. Persistent Notifications
 // --------------------------------------------------
 export async function getNotifications() {
   const { data: { user } } = await supabase.auth.getUser()
