@@ -27,8 +27,7 @@ async function checkUserBanStatus(userId) {
 }
 
 /**
- * Calls serverless API endpoint (/api/moderate) for text moderation.
- * Keeps Groq SDK out of Vite bundle to fix build errors.
+ * Sends content to the serverless AI moderation endpoint before DB insertion.
  */
 async function moderateContent(content, type = 'request') {
   try {
