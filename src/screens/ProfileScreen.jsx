@@ -6,6 +6,7 @@ import {
   deleteRequest
 } from '../lib/api'
 import { listMyOffers } from '../lib/extra'
+import { supabase } from '../lib/supabaseClient'
 
 const STATUS_LABEL = {
   open: 'Open',
@@ -32,26 +33,38 @@ export default function ProfileScreen({ myId, onOpen }) {
   const [stats, setStats] = useState(null)
   const [mine, setMine] = useState([])
   const [offers, setOffers] = useState([])
+  const [username, setUsername] = useState('Your account')
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     let active = true
 
-    Promise.all([
-      getProfileStats(myId),
-      listMyRequests(),
-      listMyOffers()
-    ])
-      .then(([s, m, o]) => {
+    async function loadProfile() {
+      try {
+        const [s, m, o, profileResult] = await Promise.all([
+          getProfileStats(myId),
+          listMyRequests(),
+          listMyOffers(),
+          supabase
+            .from('users')
+            .select('name')
+            .eq('id', myId)
+            .maybeSingle()
+        ])
+
         if (!active) return
+
         setStats(s)
         setMine(m)
         setOffers(o)
-      })
-      .catch(e => {
+        setUsername(profileResult.data?.name || 'Your account')
+      } catch (e) {
         if (active) setError(e.message)
-      })
+      }
+    }
+
+    loadProfile()
 
     return () => {
       active = false
@@ -103,6 +116,7 @@ export default function ProfileScreen({ myId, onOpen }) {
 
       <div className="card">
         <h2>My Profile</h2>
+        <h3>👤 {username}</h3>
         <p>⭐ {Number(stats.rating || 0).toFixed(1)} rating</p>
         <p>{stats.peopleHelped || 0} people helped</p>
         <p>{trust}</p>
