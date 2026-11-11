@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { listOpenRequests } from '../lib/api'
 
 const CATEGORIES = ['All', 'Groceries', 'Rides', 'Tools', 'Lost and Found', 'Other']
+
 const ICONS = {
   Groceries: '🛒',
   Rides: '🚗',
@@ -70,36 +71,46 @@ export default function HomeScreen({ onOpen }) {
         <p className="muted">No requests in this category yet.</p>
       )}
 
-      {requests.map((r) => (
-        <div className="card" key={r.id}>
-          <span className="category">
-            {ICONS[r.category] || '💚'} {r.category}
-          </span>
+      {requests.map((r) => {
+        const requestLocation = r.location || r.area
 
-          <h3>{r.title}</h3>
-          <p className="muted">{r.description}</p>
+        return (
+          <div className="card" key={r.id}>
+            <span className="category">
+              {ICONS[r.category] || '💚'} {r.category}
+            </span>
 
-          {r.scam_flag && (
-            <p className="error">
-              ⚠️ BEWARE — VERIFY BEFORE ACCEPTING.
-              <br />
-              This request was flagged by HelpNest's safety checker.
-              Check the details carefully before offering help.
+            <h3>{r.title}</h3>
+            <p className="muted">{r.description}</p>
+
+            {requestLocation && (
+              <p className="small muted">
+                📍 {requestLocation}
+              </p>
+            )}
+
+            {r.scam_flag && (
+              <p className="error">
+                ⚠️ BEWARE — VERIFY BEFORE ACCEPTING.
+                <br />
+                This request was flagged by HelpNest's safety checker.
+                Check the details carefully before offering help.
+              </p>
+            )}
+
+            <p className="small muted">
+              Posted by {r.users?.name || 'a neighbour'}
             </p>
-          )}
 
-          <p className="small muted">
-            Posted by {r.users?.name || 'a neighbour'}
-          </p>
-
-          <button
-            className="btn secondary small"
-            onClick={() => onOpen(r.id)}
-          >
-            View request →
-          </button>
-        </div>
-      ))}
+            <button
+              className="btn secondary small"
+              onClick={() => onOpen(r.id)}
+            >
+              View request →
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

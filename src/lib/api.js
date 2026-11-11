@@ -103,7 +103,10 @@ export async function createRequest({
   description,
   category = 'Other',
   scamFlag = false,
+  location,
   area,
+  latitude,
+  longitude,
   urgent,
 }) {
   const user_id = await currentUserId()
@@ -116,7 +119,18 @@ export async function createRequest({
     scam_flag: scamFlag,
   }
 
-  if (area !== undefined) row.area = area
+  // Save the readable approximate location.
+  // "area" is accepted temporarily for compatibility with older screens.
+  const savedLocation = location ?? area
+
+  if (savedLocation !== undefined) {
+    row.location = savedLocation
+  }
+
+  // Save GPS coordinates when available.
+  row.latitude = latitude ?? null
+  row.longitude = longitude ?? null
+
   if (urgent !== undefined) row.urgent = urgent
 
   return check(

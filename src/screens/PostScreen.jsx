@@ -9,6 +9,12 @@ export default function PostScreen({ onDone }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('Groceries')
+  const [location, setLocation] = useState('')
+  const [latitude, setLatitude] = useState(null)
+  const [longitude, setLongitude] = useState(null)
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [locationError, setLocationError] = useState('')
+
   const [decision, setDecision] = useState('')
   const [warningReason, setWarningReason] = useState('')
   const [safetyNotice, setSafetyNotice] = useState('')
@@ -22,12 +28,76 @@ export default function PostScreen({ onDone }) {
     setError('')
   }
 
+  async function detectLocation() {
+    setLocationError('')
+
+    if (!navigator.geolocation) {
+      setLocationError('GPS is not supported by this browser. Please enter your area manually.')
+      return
+    }
+
+    setLocationLoading(true)
+
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 60000,
+        })
+      })
+
+      const lat = position.coords.latitude
+      const lng = position.coords.longitude
+
+      // Keep only approximate coordinates for privacy.
+      setLatitude(Number(lat.toFixed(2)))
+      setLongitude(Number(lng.toFixed(2)))
+
+      const response = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+      )
+
+      if (!response.ok) {
+        throw new Error('Could not find your area name. Please enter it manually.')
+      }
+
+      const data = await response.json()
+
+      const area =
+        data.locality ||
+        data.city ||
+        data.principalSubdivision ||
+        data.countryName
+
+      if (!area) {
+        throw new Error('Area name unavailable. Please enter it manually.')
+      }
+
+      setLocation(area)
+      setLocationError('')
+    } catch (err) {
+      setLocationError(
+        err.code === 1
+          ? 'Location permission was denied. You can enter your area manually.'
+          : err.message || 'Could not detect your location. Please enter it manually.'
+      )
+      setLatitude(null)
+      setLongitude(null)
+    } finally {
+      setLocationLoading(false)
+    }
+  }
+
   async function publishRequest(flagged) {
     await createRequest({
       title,
       description,
       category,
       scamFlag: flagged,
+      location: location.trim() || null,
+      latitude,
+      longitude,
     })
 
     onDone()
@@ -42,11 +112,11 @@ export default function PostScreen({ onDone }) {
     setLoading(true)
 
     try {
-      // Second submission: user confirms a warning or offline notice.
+      // User confirms a warning or offline notice.
       if (decision === 'WARN' || decision === 'OFFLINE') {
-  await publishRequest(true)
-  return
-}
+        await publishRequest(true)
+        return
+      }
 
       if (decision === 'BLOCK') {
         setError('This request cannot be posted. Please edit it.')
@@ -80,7 +150,6 @@ export default function PostScreen({ onDone }) {
         return
       }
 
-      // AI and offline checks both passed.
       await publishRequest(false)
     } catch (err) {
       setError(err.message || 'Something went wrong.')
@@ -135,6 +204,37 @@ export default function PostScreen({ onDone }) {
             }}
             required
           />
+        </div>
+
+        <div className="field">
+          <label>📍 Approximate area (optional)</label>
+
+          <input
+            value={location}
+            onChange={(e) => {
+              setLocation(e.target.value)
+              setLatitude(null)
+              setLongitude(null)
+            }}
+            placeholder="Enter your area or neighbourhood"
+          />
+
+          <button
+            type="button"
+            className="btn"
+            onClick={detectLocation}
+            disabled={locationLoading}
+          >
+            {locationLoading ? 'Detecting location...' : '📍 Use my current location'}
+          </button>
+
+          {locationError && (
+            <p className="error">{locationError}</p>
+          )}
+
+          <p className="muted small">
+            Only your approximate area is shown to neighbours. Exact GPS coordinates are not saved.
+          </p>
         </div>
 
         {decision === 'OFFLINE' && (
