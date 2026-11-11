@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 
 export default async function handler(req, res) {
-  // CORS Headers
+  // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -18,30 +18,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Safe request body parsing
-  let body = req.body;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (e) {
-      body = {};
-    }
-  }
-
-  const { content, type } = body || {};
+  const { content, type } = req.body || {};
 
   if (!content) {
     return res.status(400).json({ error: 'Content is required' });
   }
 
   try {
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) {
-      console.warn('GROQ_API_KEY missing in environment variables');
-      return res.status(200).json({ flagged: false, warning: 'API key missing' });
-    }
-
-    const groq = new Groq({ apiKey });
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
     const prompt = `You are an AI moderator for a community help platform called HelpNest. 
 Analyze the following text for severe profanity, abuse, harassment, threats, hate speech, or explicit content.
