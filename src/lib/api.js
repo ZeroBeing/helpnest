@@ -138,18 +138,29 @@ export async function createRequest({
   )
 }
 
-export async function listOpenRequests(category = null) {
+
+
+export async function listOpenRequests(category = null, urgentOnly = false) {
   let q = supabase
     .from('requests')
     .select('*, users(name, rating)')
     .eq('status', 'open')
+    .eq('is_hidden', false)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  if (category) q = q.eq('category', category)
+  if (category) {
+    q = q.eq('category', category)
+  }
+
+  if (urgentOnly) {
+    q = q.eq('urgent', true)
+  }
 
   return check(await q)
 }
+
+
 
 export async function getRequest(requestId) {
   return check(

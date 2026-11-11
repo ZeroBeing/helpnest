@@ -9,7 +9,6 @@ function findBestArea(data) {
   const informative = data.localityInfo?.informative || []
   const administrative = data.localityInfo?.administrative || []
 
-  // Prefer neighbourhood-level information when available.
   const detailedArea = informative.find((item) =>
     /neighbou?rhood|suburb|quarter|residential area|village/i.test(
       `${item.description || ''} ${item.name || ''}`
@@ -41,6 +40,8 @@ export default function PostScreen({ onDone }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('Groceries')
+  const [urgent, setUrgent] = useState(false)
+
   const [location, setLocation] = useState('')
   const [latitude, setLatitude] = useState(null)
   const [longitude, setLongitude] = useState(null)
@@ -84,7 +85,6 @@ export default function PostScreen({ onDone }) {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
 
-      // Save approximate coordinates only.
       setLatitude(Number(lat.toFixed(2)))
       setLongitude(Number(lng.toFixed(2)))
 
@@ -126,6 +126,7 @@ export default function PostScreen({ onDone }) {
       description,
       category,
       scamFlag: flagged,
+      urgent,
       location: location.trim() || null,
       latitude,
       longitude,
@@ -234,6 +235,59 @@ export default function PostScreen({ onDone }) {
             required
           />
         </div>
+
+       <div className="field">
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px',
+      padding: '12px',
+      border: '1px solid var(--border, #ddd)',
+      borderRadius: '12px',
+    }}
+  >
+    <div>
+      <strong>🚨 Mark as urgent</strong>
+      <p className="muted small">
+        Highlight this request for neighbours.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      role="switch"
+      aria-checked={urgent}
+      onClick={() => setUrgent(!urgent)}
+      style={{
+        width: '48px',
+        height: '27px',
+        borderRadius: '20px',
+        border: 'none',
+        padding: '3px',
+        background: urgent ? '#16a34a' : '#9ca3af',
+        cursor: 'pointer',
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          display: 'block',
+          width: '21px',
+          height: '21px',
+          borderRadius: '50%',
+          background: 'white',
+          transform: urgent ? 'translateX(21px)' : 'translateX(0)',
+          transition: 'transform 0.2s',
+        }}
+      />
+    </button>
+  </div>
+  <p className="muted small">
+    Only use this when help is needed quickly.
+  </p>
+</div>
 
         <div className="field">
           <label>📍 Approximate area (optional)</label>

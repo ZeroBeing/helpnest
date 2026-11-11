@@ -14,21 +14,37 @@ const ICONS = {
 
 export default function HomeScreen({ onOpen }) {
   const [filter, setFilter] = useState('All')
+  const [urgentOnly, setUrgentOnly] = useState(false)
   const [requests, setRequests] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let active = true
+
     setLoading(true)
 
-    listOpenRequests(filter === 'All' ? null : filter)
+    listOpenRequests(
+      filter === 'All' ? null : filter,
+      urgentOnly
+    )
       .then((data) => {
-        setRequests(data)
-        setError('')
+        if (active) {
+          setRequests(data)
+          setError('')
+        }
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [filter])
+      .catch((e) => {
+        if (active) setError(e.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [filter, urgentOnly])
 
   return (
     <div>
@@ -64,11 +80,24 @@ export default function HomeScreen({ onOpen }) {
         ))}
       </div>
 
+      <div className="chips">
+        <button
+          className={'chip' + (urgentOnly ? ' active' : '')}
+          onClick={() => setUrgentOnly(!urgentOnly)}
+        >
+          🚨 {urgentOnly ? 'Showing urgent only' : 'Urgent Only'}
+        </button>
+      </div>
+
       {error && <p className="error">{error}</p>}
       {loading && <p className="muted">Loading...</p>}
 
-      {!loading && requests.length === 0 && (
-        <p className="muted">No requests in this category yet.</p>
+      {!loading && !error && requests.length === 0 && (
+        <p className="muted">
+          {urgentOnly
+            ? 'No urgent requests available right now.'
+            : 'No requests in this category yet.'}
+        </p>
       )}
 
       {requests.map((r) => {
@@ -76,9 +105,32 @@ export default function HomeScreen({ onOpen }) {
 
         return (
           <div className="card" key={r.id}>
-            <span className="category">
-              {ICONS[r.category] || '💚'} {r.category}
-            </span>
+            <div>
+              <span className="category">
+                {ICONS[r.category] || '💚'} {r.category}
+              </span>
+
+              {r.urgent && (
+  <span
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '5px',
+      background: '#fee2e2',
+      color: '#b91c1c',
+      border: '1px solid #fecaca',
+      borderRadius: '20px',
+      padding: '5px 11px',
+      fontSize: '11px',
+      fontWeight: '800',
+      letterSpacing: '0.5px',
+      marginTop: '8px',
+    }}
+  >
+    🚨 URGENT
+  </span>
+)}
+            </div>
 
             <h3>{r.title}</h3>
             <p className="muted">{r.description}</p>

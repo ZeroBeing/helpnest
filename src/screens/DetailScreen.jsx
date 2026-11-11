@@ -93,6 +93,8 @@ export default function DetailScreen({ requestId, myId, onBack }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [reportBusy, setReportBusy] = useState(false)
+  const [reportSubmitted, setReportSubmitted] = useState(false)
   const [stars, setStars] = useState(0)
   const [review, setReview] = useState('')
   const [deleted, setDeleted] = useState(false)
@@ -150,11 +152,33 @@ export default function DetailScreen({ requestId, myId, onBack }) {
   }
 
   async function handleReport() {
+    if (reportBusy || reportSubmitted) return
+
+    setReportBusy(true)
+    setError('')
+    setNotice('')
+
     try {
       await reportRequest(requestId, 'Suspicious request')
-      setNotice('Thanks. This request has been flagged for review.')
+      setReportSubmitted(true)
+      setNotice(
+        'Thank you. Your report has been submitted. If five different neighbours report this request, it will be hidden automatically for review.'
+      )
     } catch (e) {
-      setError(e.message)
+      const message = e.message?.toLowerCase() || ''
+
+      if (
+        message.includes('duplicate') ||
+        message.includes('unique constraint') ||
+        message.includes('23505')
+      ) {
+        setReportSubmitted(true)
+        setNotice("You have already reported this request. Thank you for helping keep HelpNest safe.")
+      } else {
+        setError(e.message)
+      }
+    } finally {
+      setReportBusy(false)
     }
   }
 
@@ -234,7 +258,17 @@ export default function DetailScreen({ requestId, myId, onBack }) {
 
       {!isOwner && (
         <p>
-          <button className="btn ghost small" onClick={handleReport}>⚑ Report request</button>
+          <button
+            className="btn ghost small"
+            disabled={reportBusy || reportSubmitted}
+            onClick={handleReport}
+          >
+            {reportBusy
+              ? 'Submitting report...'
+              : reportSubmitted
+                ? '✓ Report submitted'
+                : '⚑ Report request'}
+          </button>
         </p>
       )}
 
