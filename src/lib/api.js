@@ -1,253 +1,306 @@
-// src/lib/api.js
-// Owner: Ahmed. Login + saving/loading data. Hamza's screens call these functions.
-// Every function returns the data, or throws an Error with a readable message.
-import { supabase } from './supabaseClient'
+import { supabase } from './supabaseClient';
 
-function check({ data, error }) {
-  if (error) throw new Error(error.message)
-  return data
-}
+/**
+ * Helper to check if the current user is banned before allowing actions.
+ */
+async function checkUserBanStatus(userId) {
+  if (!userId) return;
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('is_banned, banned_until, ban_reason')
+    .eq('id', userId)
+    .single();
 
-async function currentUserId() {
-  const { data, error } = await supabase.auth.getUser()
-  if (error || !data.user) throw new Error('You must be logged in')
-  return data.user.id
-}
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking ban status:', error);
+    return;
+  }
 
-// ---------- AUTH (phone number & email helper) ----------
-
-export function phoneToEmail(phone) {
-  let digits = String(phone).replace(/\D/g, '')
-  if (digits.startsWith('0')) digits = '92' + digits.slice(1) // 0300... -> 92300...
-  if (digits.length < 8) throw new Error('Please enter a valid phone number')
-  return `${digits}@neighbourly.app`
-}
-
-export async function signUp(email, password, name) {
-  return check(
-    await supabase.auth.signUp({ email, password, options: { data: { name } } })
-  )
-}
-
-export async function logIn(email, password) {
-  return check(await supabase.auth.signInWithPassword({ email, password }))
-}
-
-export async function signUpWithPhone(phone, password, name) {
-  return signUp(phoneToEmail(phone), password, name)
-}
-
-export async function logInWithPhone(phone, password) {
-  return logIn(phoneToEmail(phone), password)
-}
-
-export async function logOut() {
-  const { error } = await supabase.auth.signOut()
-  if (error) throw new Error(error.message)
-}
-
-export async function getSession() {
-  const { data } = await supabase.auth.getSession()
-  return data.session
-}
-
-// ---------- USERS / PROFILE ----------
-
-export async function getProfile(userId) {
-  return check(
-    await supabase.from('users').select('id, name, phone_verified, rating').eq('id', userId).single()
-  )
-}
-
-export async function getProfileStats(userId) {
-  const profile = await getProfile(userId)
-
-  const helped = await supabase
-    .from('ratings')
-    .select('id', { count: 'exact', head: true })
-    .eq('rated_id', userId)
-  if (helped.error) throw new Error(helped.error.message)
-
-  const posted = await supabase
-    .from('requests')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-  if (posted.error) throw new Error(posted.error.message)
-
-  return {
-    name: profile.name,
-    rating: Number(profile.rating),
-    peopleHelped: helped.count ?? 0,
-    requestsPosted: posted.count ?? 0,
+  if (userData?.is_banned) {
+    const isTempBan = userData.banned_until && new Date(userData.banned_until) > new Date();
+    const isPermanent = !userData.banned_until;
+    if (isTempBan || isPermanent) {
+      const reason = userData.ban_reason ? ` Reason: ${userData.ban_reason}` : '';
+      throw new Error(`Your account has been suspended.${reason}`);
+    }
   }
 }
 
-// ---------- REQUESTS ----------
-
-export async function createRequest({
-  title,
-  description,
-  category = 'Other',
-  scamFlag = false,
-  area,
-  urgent,
-}) {
-  const user_id = await currentUserId()
-  const row = { user_id, title, description, category, scam_flag: scamFlag }
-  if (area !== undefined) row.area = area
-  if (urgent !== undefined) row.urgent = urgent
-  return check(await supabase.from('requests').insert(row).select().single())
+/**
+ * Call serverless AI moderation endpoint for text content.
+ */
+async function moderateContent(content, type = 'request') {
+  try {
+    const res = await fetch('/api/moderate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, type })
+    });
+    if (!res.ok) return; // Fallback gracefully if API is unavailable
+    const data = await res.json();
+    if (data.flagged) {
+      throw new Error(`Content blocked by moderation: ${data.reason || 'Inappropriate content detected.'}`);
+    }
+  } catch (err) {
+    if (err.message.startsWith('Content blocked')) {
+      throw err;
+    }
+    console.warn('Moderation check skipped due to error:', err);
+  }
 }
 
-export async function listOpenRequests(category = null) {
-  let q = supabase
-    .from('requests')
-    .select('*, users(name, rating)')
-    .eq('status', 'open')
-    .order('created_at', { ascending: false })
+// -------------------------------------------------------------
+// REQUESTS API
+// -------------------------------------------------------------
 
-  if (category) q = q.eq('category', category)
-
-  return check(await q)
-}
-
-export async function getRequest(requestId) {
-  return check(
-    await supabase
-      .from('requests')
-      .select('*, users(name, rating)')
-      .eq('id', requestId)
-      .single()
-  )
-}
-
-export async function listMyRequests() {
-  const user_id = await currentUserId()
-  return check(
-    await supabase.from('requests').select('*').eq('user_id', user_id).order('created_at', { ascending: false })
-  )
-}
-
-export async function setRequestStatus(requestId, status) {
-  return check(
-    await supabase.from('requests').update({ status }).eq('id', requestId).select().single()
-  )
-}
-
-// ---------- RESPONSES (offering help) ----------
-
-export async function offerHelp(requestId) {
-  const helper_id = await currentUserId()
-  return check(
-    await supabase.from('responses').insert({ request_id: requestId, helper_id }).select().single()
-  )
-}
-
-export async function listResponses(requestId) {
-  return check(
-    await supabase
-      .from('responses')
-      .select('id, request_id, helper_id, created_at, users(name, rating)')
-      .eq('request_id', requestId)
-  )
-}
-
-export async function getMyRole(requestId) {
-  const userId = await currentUserId()
-  const reqData = await supabase.from('requests').select('user_id').eq('id', requestId).single()
-  const req = check(reqData)
-  if (req.user_id === userId) return 'owner'
-
-  const mineData = await supabase
-    .from('responses')
-    .select('id')
-    .eq('request_id', requestId)
-    .eq('helper_id', userId)
-    .maybeSingle()
-  const mine = check(mineData)
-  return mine ? 'helper' : 'none'
-}
-
-// ---------- ACCEPTING A HELPER ----------
-
-export async function acceptHelper(requestId, helperId) {
-  const reset = await supabase.from('responses').update({ accepted: false }).eq('request_id', requestId)
-  if (reset.error) throw new Error(reset.error.message)
-
-  const pick = await supabase
-    .from('responses')
-    .update({ accepted: true })
-    .eq('request_id', requestId)
-    .eq('helper_id', helperId)
-  if (pick.error) throw new Error(pick.error.message)
-
-  return setRequestStatus(requestId, 'matched')
-}
-
-export async function getAcceptedHelper(requestId) {
+/**
+ * Get public requests for the Home feed.
+ * Excludes completed requests, hidden (reported) requests, and soft-deleted requests.
+ */
+export async function getRequests() {
   const { data, error } = await supabase
-    .from('responses')
-    .select('helper_id, users(name, rating)')
+    .from('requests')
+    .select(`
+      *,
+      users:user_id (full_name, phone)
+    `)
+    .eq('status', 'open')
+    .is('deleted_at', null)
+    .eq('is_hidden', false)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get a single request by ID.
+ */
+export async function getRequestById(id) {
+  const { data, error } = await supabase
+    .from('requests')
+    .select(`
+      *,
+      users:user_id (full_name, phone)
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Create a new help request.
+ * Enforces ban checks, AI moderation, and accepts GPS coordinates (latitude/longitude).
+ */
+export async function createRequest(requestData) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  // Enforce ban check
+  await checkUserBanStatus(user.id);
+
+  // Moderate content before saving
+  const textToModerate = `${requestData.title || ''} ${requestData.description || ''}`;
+  await moderateContent(textToModerate, 'request');
+
+  const payload = {
+    user_id: user.id,
+    title: requestData.title,
+    description: requestData.description,
+    category: requestData.category,
+    urgency: requestData.urgency || 'medium',
+    location: requestData.location,
+    latitude: requestData.latitude || null,
+    longitude: requestData.longitude || null,
+    status: 'open'
+  };
+
+  const { data, error } = await supabase
+    .from('requests')
+    .insert([payload])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Safe Soft-Delete for Request Owners.
+ * Sets `deleted_at` so history, offers, chats, and ratings remain intact without breaking DB relationships.
+ */
+export async function deleteRequest(requestId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data: req, error: fetchErr } = await supabase
+    .from('requests')
+    .select('user_id')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchErr || !req) throw new Error('Request not found');
+  if (req.user_id !== user.id) throw new Error('Unauthorized: You can only delete your own request.');
+
+  const { error } = await supabase
+    .from('requests')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', requestId);
+
+  if (error) throw error;
+  return true;
+}
+
+/**
+ * Update request status (e.g., 'in_progress', 'completed', 'cancelled').
+ */
+export async function updateRequestStatus(requestId, status) {
+  const { data, error } = await supabase
+    .from('requests')
+    .update({ status })
+    .eq('id', requestId)
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+// -------------------------------------------------------------
+// OFFERS & CHAT MESSAGES API
+// -------------------------------------------------------------
+
+/**
+ * Create an offer on a request.
+ */
+export async function createOffer(requestId, message = '') {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  await checkUserBanStatus(user.id);
+
+  if (message.trim()) {
+    await moderateContent(message, 'chat');
+  }
+
+  const { data, error } = await supabase
+    .from('offers')
+    .insert([{
+      request_id: requestId,
+      helper_id: user.id,
+      message,
+      status: 'pending'
+    }])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Send a chat message.
+ * Enforces ban checks and AI moderation on every message.
+ */
+export async function sendMessage(requestId, messageText) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  await checkUserBanStatus(user.id);
+  await moderateContent(messageText, 'chat');
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([{
+      request_id: requestId,
+      sender_id: user.id,
+      content: messageText
+    }])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Get chat messages for a specific request.
+ */
+export async function getMessages(requestId) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      users:sender_id (full_name)
+    `)
     .eq('request_id', requestId)
-    .eq('accepted', true)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  return data
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return data;
 }
 
-// ---------- MESSAGES (chat) ----------
+// -------------------------------------------------------------
+// REPORTING & ADMIN REVIEW API
+// -------------------------------------------------------------
 
-export async function sendMessage(requestId, text) {
-  const sender_id = await currentUserId()
-  return check(
-    await supabase.from('messages').insert({ request_id: requestId, sender_id, text }).select().single()
-  )
-}
-
-export async function loadMessages(requestId) {
-  return check(
-    await supabase
-      .from('messages')
-      .select('id, request_id, sender_id, text, created_at')
-      .eq('request_id', requestId)
-      .order('created_at', { ascending: true })
-  )
-}
-
-export function subscribeToMessages(requestId, onNewMessage) {
-  const channel = supabase
-    .channel(`messages-${requestId}`)
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages', filter: `request_id=eq.${requestId}` },
-      (payload) => onNewMessage(payload.new)
-    )
-    .subscribe()
-  return () => supabase.removeChannel(channel)
-}
-
-// ---------- RATINGS ----------
-
-export async function submitRating(requestId, ratedUserId, stars, review = '') {
-  const rater_id = await currentUserId()
-  return check(
-    await supabase
-      .from('ratings')
-      .insert({ request_id: requestId, rater_id, rated_id: ratedUserId, stars, review })
-      .select()
-      .single()
-  )
-}
-
-export async function completeRequest(requestId, helperId, stars, review = '') {
-  await setRequestStatus(requestId, 'done')
-  return submitRating(requestId, helperId, stars, review)
-}
-
-// ---------- REPORTS ----------
-
+/**
+ * Report a request and automatically hide it from the home feed pending review.
+ */
 export async function reportRequest(requestId, reason) {
-  const reporter_id = await currentUserId()
-  const { error } = await supabase.from('reports').insert({ request_id: requestId, reporter_id, reason })
-  if (error) throw new Error(error.message)
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  // 1. Insert report record
+  const { error: reportErr } = await supabase
+    .from('reports')
+    .insert([{
+      request_id: requestId,
+      reporter_id: user.id,
+      reason
+    }]);
+
+  if (reportErr) throw reportErr;
+
+  // 2. Hide request pending admin review
+  const { error: hideErr } = await supabase
+    .from('requests')
+    .update({ is_hidden: true })
+    .eq('id', requestId);
+
+  if (hideErr) throw hideErr;
+  return true;
+}
+
+/**
+ * Admin action to review reported requests.
+ * @param {string} requestId 
+ * @param {'approve'|'dismiss'} action - 'approve' restores to feed, 'dismiss' archives/deletes request.
+ * @param {boolean} banUser - Optional option to ban request creator.
+ * @param {string} banReason - Reason for ban.
+ */
+export async function adminReviewReport(requestId, action, banUser = false, banReason = '') {
+  if (action === 'approve') {
+    await supabase.from('requests').update({ is_hidden: false }).eq('id', requestId);
+  } else if (action === 'dismiss') {
+    await supabase.from('requests').update({ deleted_at: new Date().toISOString() }).eq('id', requestId);
+  }
+
+  if (banUser) {
+    const { data: req } = await supabase
+      .from('requests')
+      .select('user_id')
+      .eq('id', requestId)
+      .single();
+
+    if (req?.user_id) {
+      await supabase
+        .from('users')
+        .update({
+          is_banned: true,
+          ban_reason: banReason || 'Violated community guidelines',
+          banned_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // Default 7 days
+        })
+        .eq('id', req.user_id);
+    }
+  }
+  return true;
 }
