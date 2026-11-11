@@ -1,6 +1,6 @@
 
 const RED_FLAGS = [
-  // Money requests: warn for human review
+  // Money requests
   /\b(need|needs|want|wants|request|requesting|looking for|require|required)\b.{0,40}\b(money|cash|funds|payment|donation|fee|deposit)\b/i,
   /\b(money|cash|funds|payment|donation|fee|deposit)\b.{0,40}\b(needed|required|requested|send|transfer|pay)\b/i,
   /\b(send|give|transfer|pay|deposit)\b.{0,40}\b(money|cash|funds|payment)\b/i,
@@ -46,27 +46,53 @@ const RED_FLAGS = [
   /\b(double investment|daily returns|passive income guaranteed)\b/i,
   /\b(send crypto|transfer bitcoin|buy usdt)\b/i,
 
-  // Suspicious pressure and manipulation
+  // Suspicious pressure
   /\b(act now|limited time|urgent payment|immediate payment)\b/i,
   /\b(account will be blocked|account will be suspended)\b/i,
   /\b(verify immediately|confirm immediately|payment required urgently)\b/i,
   /\b(do not tell anyone|keep this secret|confidential transaction)\b/i,
   /\b(send money to unlock|pay to activate|pay to release)\b/i,
 
-  // Suspicious employment and task offers
+  // Suspicious employment
   /\b(pay to get a job|registration fee for job|job processing fee)\b/i,
   /\b(earn from home guaranteed|work from home guaranteed income)\b/i,
   /\b(pay to complete tasks|deposit to withdraw earnings)\b/i,
   /\b(commission before work|fee before interview)\b/i,
 
-  // Requests for private information
+  // Private information
   /\b(send me your personal details|share your personal information)\b/i,
   /\b(send your bank details|share your account details)\b/i,
   /\b(give me your otp|send me your otp|share your pin)\b/i,
   /\b(share your password|send your password)\b/i,
 ]
 
-// Offline checker for known suspicious patterns
+// Offline chat checks.
+// These focus on clear harmful intent, not isolated words.
+const CHAT_BLOCK_PATTERNS = [
+  // Explicit threats
+  /\b(i will|i'm going to|im going to|i am going to)\b.{0,50}\b(kill you|hurt you|attack you|beat you up|shoot you)\b/i,
+  /\b(threaten to kill|going to kill|going to hurt)\b/i,
+
+  // Attempts to steal credentials
+  /\b(send|give|tell|share)\b.{0,35}\b(your|me your)\b.{0,20}\b(otp|password|pin code|login credentials)\b/i,
+  /\b(steal|hack into)\b.{0,35}\b(your account|your bank account|your password)\b/i,
+
+  // Explicit sexual harassment or solicitation
+  /\b(send me|show me|share)\b.{0,35}\b(nude photos|naked pictures|explicit pictures)\b/i,
+  /\b(sexual favou?r|sexual services)\b/i,
+]
+
+const CHAT_WARN_PATTERNS = [
+  // Targeted insults and harassment
+  /\b(you are|you're|u are)\b.{0,25}\b(idiot|stupid|moron|worthless|disgusting)\b/i,
+  /\b(i will|i'm going to|im going to)\b.{0,40}\b(ruin your life|make you regret|find you)\b/i,
+
+  // Suspicious requests for money or personal information
+  /\b(send|transfer|pay|deposit)\b.{0,40}\b(money|cash|payment|fee)\b/i,
+  /\b(otp|one time password|bank details|card number|password|account pin)\b/i,
+  /\b(keep this secret|do not tell anyone|don't tell anyone)\b/i,
+]
+
 export function checkScam(title, description) {
   const text = `${title || ''} ${description || ''}`
   const hits = RED_FLAGS.some((pattern) => pattern.test(text))
@@ -87,15 +113,11 @@ export async function checkScamAI(title, description) {
   try {
     const response = await fetch('/api/scam-check', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, description }),
     })
 
-    if (!response.ok) {
-      throw new Error('AI service unavailable')
-    }
+    if (!response.ok) throw new Error('AI service unavailable')
 
     const result = await response.json()
     const decision = String(result.decision || '').toUpperCase()
@@ -104,10 +126,8 @@ export async function checkScamAI(title, description) {
       throw new Error('Invalid AI response')
     }
 
-    // Run offline checks as an additional safety layer.
     const offlineResult = checkScam(title, description)
 
-    // AI BLOCK always remains BLOCK.
     if (decision === 'BLOCK') {
       return {
         decision: 'BLOCK',
@@ -118,15 +138,11 @@ export async function checkScamAI(title, description) {
       }
     }
 
-    // A warning from either checker must not be ignored.
     if (decision === 'WARN' || offlineResult.scamFlag) {
       return {
         decision: 'WARN',
         scamFlag: true,
-        reason:
-          result.reason ||
-          offlineResult.reason ||
-          'Please verify this request carefully.',
+        reason: result.reason || offlineResult.reason,
         source: 'groq+offline',
         aiChecked: true,
       }
@@ -140,50 +156,87 @@ export async function checkScamAI(title, description) {
       aiChecked: true,
     }
   } catch (error) {
-    console.warn(
-      'AI request moderation unavailable. Using offline checks.',
-      error
-    )
+    console.warn('AI request moderation unavailable:', error)
 
-    // Groq failed: use the existing offline checker.
     const offlineResult = checkScam(title, description)
 
     return {
       ...offlineResult,
-      reason: offlineResult.scamFlag
-        ? offlineResult.reason
-        : 'AI moderation is unavailable. Offline checks found no known suspicious patterns, but this is not a complete safety check.',
+      reason: offlineResult.reason ||
+        'AI moderation is unavailable. The limited offline check found no known suspicious patterns.',
       source: 'offline-fallback',
       aiChecked: false,
     }
   }
 }
 
-// AI moderation for chat messages
-export async function checkContentAI(content) {
-  const response = await fetch('/api/moderate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ content }),
-  })
+// Offline fallback for chat messages
+function checkOfflineChat(content) {
+  const text = String(content || '').trim()
 
-  if (!response.ok) {
-    throw new Error('AI chat moderation unavailable. Please try again.')
+  if (CHAT_BLOCK_PATTERNS.some((pattern) => pattern.test(text))) {
+    return {
+      decision: 'BLOCK',
+      reason: 'This message appears to contain a serious safety violation.',
+    }
   }
 
-  const result = await response.json()
-  const decision = String(result.decision || '').toUpperCase()
-
-  if (!['ALLOW', 'WARN', 'BLOCK'].includes(decision)) {
-    throw new Error('Invalid AI safety response.')
+  if (
+    CHAT_WARN_PATTERNS.some((pattern) => pattern.test(text)) ||
+    RED_FLAGS.some((pattern) => pattern.test(text))
+  ) {
+    return {
+      decision: 'WARN',
+      reason: 'The offline safety checker detected potentially suspicious or harmful content. Please review your message.',
+    }
   }
 
   return {
-    decision,
-    flagged: result.flagged === true || decision !== 'ALLOW',
-    reason: result.reason || '',
-    aiChecked: true,
+    decision: 'ALLOW',
+    reason: '',
+  }
+}
+
+// AI moderation for chat messages with offline fallback
+export async function checkContentAI(content) {
+  try {
+    const response = await fetch('/api/moderate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Moderation service returned ${response.status}`)
+    }
+
+    const result = await response.json()
+    const decision = String(result.decision || '').toUpperCase()
+
+    if (!['ALLOW', 'WARN', 'BLOCK'].includes(decision)) {
+      throw new Error('Invalid AI safety response')
+    }
+
+    return {
+      decision,
+      flagged: result.flagged === true || decision !== 'ALLOW',
+      reason: result.reason || '',
+      source: 'groq',
+      aiChecked: true,
+    }
+  } catch (error) {
+    console.warn(
+      'AI chat moderation unavailable. Using offline checks.',
+      error
+    )
+
+    const offline = checkOfflineChat(content)
+
+    return {
+      ...offline,
+      flagged: offline.decision !== 'ALLOW',
+      source: 'offline-fallback',
+      aiChecked: false,
+    }
   }
 }

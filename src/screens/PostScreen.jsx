@@ -5,6 +5,38 @@ import { checkScamAI } from '../lib/scamCheck'
 
 const CATEGORIES = ['Groceries', 'Rides', 'Tools', 'Lost and Found', 'Other']
 
+function findBestArea(data) {
+  const informative = data.localityInfo?.informative || []
+  const administrative = data.localityInfo?.administrative || []
+
+  // Prefer neighbourhood-level information when available.
+  const detailedArea = informative.find((item) =>
+    /neighbou?rhood|suburb|quarter|residential area|village/i.test(
+      `${item.description || ''} ${item.name || ''}`
+    )
+  )
+
+  if (detailedArea?.name) return detailedArea.name
+
+  const districtArea = administrative.find((item) =>
+    /district|town|city district|county/i.test(
+      `${item.description || ''} ${item.name || ''}`
+    )
+  )
+
+  if (districtArea?.name && districtArea.name !== data.city) {
+    return districtArea.name
+  }
+
+  return (
+    data.locality ||
+    data.city ||
+    data.principalSubdivision ||
+    data.countryName ||
+    ''
+  )
+}
+
 export default function PostScreen({ onDone }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -32,7 +64,9 @@ export default function PostScreen({ onDone }) {
     setLocationError('')
 
     if (!navigator.geolocation) {
-      setLocationError('GPS is not supported by this browser. Please enter your area manually.')
+      setLocationError(
+        'GPS is not supported by this browser. Please enter your area manually.'
+      )
       return
     }
 
@@ -50,7 +84,7 @@ export default function PostScreen({ onDone }) {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
 
-      // Keep only approximate coordinates for privacy.
+      // Save approximate coordinates only.
       setLatitude(Number(lat.toFixed(2)))
       setLongitude(Number(lng.toFixed(2)))
 
@@ -59,16 +93,11 @@ export default function PostScreen({ onDone }) {
       )
 
       if (!response.ok) {
-        throw new Error('Could not find your area name. Please enter it manually.')
+        throw new Error('Could not find your area. Please enter it manually.')
       }
 
       const data = await response.json()
-
-      const area =
-        data.locality ||
-        data.city ||
-        data.principalSubdivision ||
-        data.countryName
+      const area = findBestArea(data)
 
       if (!area) {
         throw new Error('Area name unavailable. Please enter it manually.')
@@ -80,8 +109,10 @@ export default function PostScreen({ onDone }) {
       setLocationError(
         err.code === 1
           ? 'Location permission was denied. You can enter your area manually.'
-          : err.message || 'Could not detect your location. Please enter it manually.'
+          : err.message ||
+            'Could not detect your location. Please enter your area manually.'
       )
+
       setLatitude(null)
       setLongitude(null)
     } finally {
@@ -112,7 +143,6 @@ export default function PostScreen({ onDone }) {
     setLoading(true)
 
     try {
-      // User confirms a warning or offline notice.
       if (decision === 'WARN' || decision === 'OFFLINE') {
         await publishRequest(true)
         return
@@ -123,7 +153,6 @@ export default function PostScreen({ onDone }) {
         return
       }
 
-      // First submission: run safety checks.
       const result = await checkScamAI(title, description)
 
       setDecision(result.decision)
@@ -216,7 +245,7 @@ export default function PostScreen({ onDone }) {
               setLatitude(null)
               setLongitude(null)
             }}
-            placeholder="Enter your area or neighbourhood"
+            placeholder="Enter your neighbourhood, town or area"
           />
 
           <button
@@ -225,7 +254,9 @@ export default function PostScreen({ onDone }) {
             onClick={detectLocation}
             disabled={locationLoading}
           >
-            {locationLoading ? 'Detecting location...' : '📍 Use my current location'}
+            {locationLoading
+              ? 'Detecting location...'
+              : '📍 Use my current location'}
           </button>
 
           {locationError && (
@@ -233,7 +264,8 @@ export default function PostScreen({ onDone }) {
           )}
 
           <p className="muted small">
-            Only your approximate area is shown to neighbours. Exact GPS coordinates are not saved.
+            HelpNest shows your approximate area to neighbours, not your exact
+            GPS coordinates.
           </p>
         </div>
 
@@ -251,8 +283,8 @@ export default function PostScreen({ onDone }) {
             <strong>⚠️ BEWARE — VERIFY BEFORE ACCEPTING</strong>
             <p>{warningReason}</p>
             <p>
-              Your request has not been published yet.
-              If you continue, neighbours will see a safety warning.
+              Your request has not been published yet. If you continue,
+              neighbours will see a safety warning.
             </p>
           </div>
         )}

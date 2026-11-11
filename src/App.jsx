@@ -20,6 +20,7 @@ export default function App() {
 
   const [notifications, setNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
+
   const [seen, setSeen] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('helpnest-seen') || '[]')
@@ -50,7 +51,7 @@ export default function App() {
       try {
         const userId = session.user.id
 
-        const [owned, offers] = await Promise.all([
+        const [owned, offers, incomingOffers] = await Promise.all([
           supabase
             .from('requests')
             .select('id, title, status')
@@ -58,13 +59,26 @@ export default function App() {
             .eq('status', 'matched'),
 
           listMyOffers(),
+
+          supabase
+            .from('responses')
+            .select(`
+              id,
+              request_id,
+              accepted,
+              users(name),
+              requests!inner(id, title, user_id)
+            `)
+            .eq('requests.user_id', userId),
         ])
 
         if (owned.error) throw owned.error
+        if (incomingOffers.error) throw incomingOffers.error
         if (!active) return
 
         const items = []
 
+        // Notify request owners when their requests are matched.
         owned.data.forEach((r) => {
           items.push({
             id: `owner-${r.id}`,
@@ -74,6 +88,20 @@ export default function App() {
           })
         })
 
+        // Notify request owners when someone offers help.
+        incomingOffers.data.forEach((o) => {
+          const request = o.requests
+          const helperName = o.users?.name
+
+          items.push({
+            id: `offer-${o.id}`,
+            requestId: o.request_id,
+            title: 'Someone offered to help!',
+            message: `${helperName || 'A neighbour'} offered to help with "${request.title}".`,
+          })
+        })
+
+        // Keep existing helper notifications.
         offers.forEach((o) => {
           if (o.accepted) {
             items.push({
@@ -147,15 +175,24 @@ export default function App() {
         <strong>🏡 HelpNest</strong>
 
         <div className="nav">
-          <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}>
+          <button
+            className={view === 'home' ? 'active' : ''}
+            onClick={() => setView('home')}
+          >
             Home
           </button>
 
-          <button className={view === 'post' ? 'active' : ''} onClick={() => setView('post')}>
+          <button
+            className={view === 'post' ? 'active' : ''}
+            onClick={() => setView('post')}
+          >
             Post a request
           </button>
 
-          <button className={view === 'profile' ? 'active' : ''} onClick={() => setView('profile')}>
+          <button
+            className={view === 'profile' ? 'active' : ''}
+            onClick={() => setView('profile')}
+          >
             Profile
           </button>
 
@@ -168,8 +205,8 @@ export default function App() {
           </button>
 
           <button className="logout-button" onClick={logOut}>
-  ↪ Log out
-</button>
+            ↪ Log out
+          </button>
         </div>
       </div>
 
@@ -177,7 +214,12 @@ export default function App() {
         <div className="card" style={{ margin: '12px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <h3>🔔 Notifications</h3>
-            <button className="link" onClick={() => setShowNotifications(false)}>Close</button>
+            <button
+              className="link"
+              onClick={() => setShowNotifications(false)}
+            >
+              Close
+            </button>
           </div>
 
           {notifications.length === 0 && (
@@ -202,7 +244,9 @@ export default function App() {
             >
               <strong>{item.title}</strong>
               <p className="small">{item.message}</p>
-              {!seen.includes(item.id) && <span className="small">● New</span>}
+              {!seen.includes(item.id) && (
+                <span className="small">● New</span>
+              )}
             </button>
           ))}
         </div>
