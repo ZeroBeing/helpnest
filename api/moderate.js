@@ -1,39 +1,16 @@
+import Groq from 'groq-sdk';
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  let body = req.body;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (e) {
-      body = {};
-    }
-  }
-
-  const { content } = body || {};
+  const { content, type } = req.body;
 
   if (!content) {
     return res.status(400).json({ error: 'Content is required' });
-  }
-
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    console.warn('GROQ_API_KEY environment variable is not set.');
-    return res.status(200).json({ flagged: false, warning: 'API key missing' });
   }
 
   try {
@@ -48,29 +25,14 @@ Respond strictly in JSON format with two keys:
 
 Do not block mild, normal, or respectful community requests. Respond ONLY with valid JSON.`;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
-        response_format: { type: 'json_object' }
-      })
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      response_format: { type: 'json_object' }
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Groq API HTTP error:', response.status, errText);
-      return res.status(200).json({ flagged: false, error: 'Moderation API error' });
-    }
-
-    const data = await response.json();
-    const result = JSON.parse(data.choices?.[0]?.message?.content || '{}');
-
+    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
     return res.status(200).json({
       flagged: Boolean(result.flagged),
       reason: result.reason || ''
