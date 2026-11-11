@@ -56,7 +56,8 @@ export default function App() {
             .from('requests')
             .select('id, title, status')
             .eq('user_id', userId)
-            .eq('status', 'matched'),
+            .eq('status', 'matched')
+            .is('deleted_at', null),
 
           listMyOffers(),
 
@@ -67,9 +68,15 @@ export default function App() {
               request_id,
               accepted,
               users(name),
-              requests!inner(id, title, user_id)
+              requests!inner(
+                id,
+                title,
+                user_id,
+                deleted_at
+              )
             `)
-            .eq('requests.user_id', userId),
+            .eq('requests.user_id', userId)
+            .is('requests.deleted_at', null),
         ])
 
         if (owned.error) throw owned.error
@@ -78,7 +85,7 @@ export default function App() {
 
         const items = []
 
-        // Notify request owners when their requests are matched.
+        // Notify owners when their requests are matched.
         owned.data.forEach((r) => {
           items.push({
             id: `owner-${r.id}`,
@@ -88,7 +95,7 @@ export default function App() {
           })
         })
 
-        // Notify request owners when someone offers help.
+        // Notify owners when someone offers help.
         incomingOffers.data.forEach((o) => {
           const request = o.requests
           const helperName = o.users?.name
@@ -103,24 +110,26 @@ export default function App() {
 
         // Keep existing helper notifications.
         offers.forEach((o) => {
+          if (!o.requests) return
+
           if (o.accepted) {
             items.push({
               id: `helper-${o.id}`,
               requestId: o.request_id,
               title: 'Your offer was accepted!',
-              message: `The owner accepted your offer for "${o.requests?.title || 'a request'}".`,
+              message: `The owner accepted your offer for "${o.requests.title || 'a request'}".`,
             })
-          } else if (o.requests?.status === 'matched') {
+          } else if (o.requests.status === 'matched') {
             items.push({
               id: `other-${o.id}`,
               requestId: o.request_id,
               title: 'Request already matched',
-              message: `"${o.requests?.title || 'This request'}" has another helper.`,
+              message: `"${o.requests.title || 'This request'}" has another helper.`,
             })
           }
         })
 
-        setNotifications(items)
+        if (active) setNotifications(items)
       } catch (error) {
         console.error('Notification check failed:', error.message)
       }

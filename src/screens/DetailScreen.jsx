@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getRequest, getMyRole, listResponses, offerHelp, acceptHelper, getAcceptedHelper,
@@ -19,20 +20,26 @@ function Chat({ requestId, myId }) {
   const endRef = useRef(null)
 
   const add = useCallback((m) => {
-    setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]))
+    setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m])
   }, [])
 
   useEffect(() => {
+    let active = true
+
     loadMessages(requestId)
-      .then((list) =>
-        setMessages((prev) => {
-          const ids = new Set(list.map((m) => m.id))
-          return [...list, ...prev.filter((m) => !ids.has(m.id))]
-        })
-      )
-      .catch((e) => setErr(e.message))
+      .then((list) => {
+        if (active) setMessages(list)
+      })
+      .catch((e) => {
+        if (active) setErr(e.message)
+      })
+
     const stop = subscribeToMessages(requestId, add)
-    return () => stop()
+
+    return () => {
+      active = false
+      stop()
+    }
   }, [requestId, add])
 
   useEffect(() => {
@@ -42,6 +49,7 @@ function Chat({ requestId, myId }) {
   async function handleSend(e) {
     e.preventDefault()
     if (!text.trim()) return
+
     setErr('')
     try {
       const m = await sendMessage(requestId, text.trim())
@@ -56,6 +64,7 @@ function Chat({ requestId, myId }) {
     <div className="card">
       <h3>💬 Chat</h3>
       <p className="small muted">Keep chat here. Never share money, gift cards, OTPs or passwords.</p>
+
       <div className="chatbox">
         {messages.length === 0 && <p className="muted small">No messages yet. Say hello!</p>}
         {messages.map((m) => (
@@ -65,7 +74,9 @@ function Chat({ requestId, myId }) {
         ))}
         <div ref={endRef} />
       </div>
+
       {err && <p className="error">{err}</p>}
+
       <form onSubmit={handleSend} className="chat-form">
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message..." />
         <button className="btn small" type="submit">Send</button>
@@ -84,30 +95,47 @@ export default function DetailScreen({ requestId, myId, onBack }) {
   const [busy, setBusy] = useState(false)
   const [stars, setStars] = useState(0)
   const [review, setReview] = useState('')
+  const [deleted, setDeleted] = useState(false)
 
   const load = useCallback(async () => {
     try {
-      const [r, ro, offs, acc] = await Promise.all([
-        getRequest(requestId),
+      const r = await getRequest(requestId)
+
+      if (!r) {
+        setDeleted(true)
+        setRequest(null)
+        return
+      }
+
+      const [ro, offs, acc] = await Promise.all([
         getMyRole(requestId),
         listResponses(requestId),
         getAcceptedHelper(requestId),
       ])
+
       setRequest(r)
       setRole(ro)
       setOffers(offs)
       setAccepted(acc)
+      setDeleted(false)
       setError('')
     } catch (e) {
-      setError(e.message)
+      if (e.message?.toLowerCase().includes('0 rows')) {
+        setDeleted(true)
+        setRequest(null)
+        setError('')
+      } else {
+        setError(e.message)
+      }
     }
   }, [requestId])
 
   useEffect(() => {
-  load()
-  const timer = setInterval(load, 5000)
-  return () => clearInterval(timer)
-}, [load])
+    load()
+    const timer = setInterval(load, 5000)
+    return () => clearInterval(timer)
+  }, [load])
+
   async function run(action) {
     setBusy(true)
     setError('')
@@ -116,8 +144,9 @@ export default function DetailScreen({ requestId, myId, onBack }) {
       await load()
     } catch (e) {
       setError(e.message)
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
   }
 
   async function handleReport() {
@@ -129,8 +158,24 @@ export default function DetailScreen({ requestId, myId, onBack }) {
     }
   }
 
+  if (deleted) {
+    return (
+      <div className="card">
+        <h3>Request no longer available</h3>
+        <p className="muted">This request has been deleted or is no longer available. Its old chat cannot be opened from this request.</p>
+        <button className="btn" onClick={onBack}>← Back to requests</button>
+      </div>
+    )
+  }
+
   if (!request) {
-    return error ? <p className="error">{error}</p> : <p className="muted">Loading...</p>
+    return (
+      <div>
+        {error && <p className="error">{error}</p>}
+        {!error && <p className="muted">Loading...</p>}
+        <button className="link" onClick={onBack}>← Back to requests</button>
+      </div>
+    )
   }
 
   const isOwner = role === 'owner'
@@ -147,22 +192,21 @@ export default function DetailScreen({ requestId, myId, onBack }) {
         <span className={'badge ' + request.status}>{STATUS_LABEL[request.status]}</span>
         <h2>{request.title}</h2>
         <p>{request.description}</p>
+
         {request.scam_flag && (
-  <div className="error" style={{ padding: 12, marginTop: 12 }}>
-    <strong>⚠️ BEWARE — VERIFY BEFORE ACCEPTING</strong>
-    <p>
-      HelpNest's AI safety checker detected potentially suspicious content.
-      Carefully verify this request before offering help.
-    </p>
-    <p className="small">
-      Never share money, OTPs, passwords or bank details.
-    </p>
-  </div>
-)}
+          <div className="error" style={{ padding: 12, marginTop: 12 }}>
+            <strong>⚠️ BEWARE — VERIFY BEFORE ACCEPTING</strong>
+            <p>HelpNest's AI safety checker detected potentially suspicious content. Carefully verify this request before offering help.</p>
+            <p className="small">Never share money, OTPs, passwords or bank details.</p>
+          </div>
+        )}
+
         <p className="small muted">
           Posted by {isOwner ? 'you' : request.users?.name || 'a neighbour'} <Rating value={request.users?.rating} />
         </p>
-        {request.area && <p className="small muted">📍 {request.area}</p>}
+        {(request.location || request.area) && (
+          <p className="small muted">📍 {request.location || request.area}</p>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -173,12 +217,21 @@ export default function DetailScreen({ requestId, myId, onBack }) {
           I can help
         </button>
       )}
-      {role === 'none' && request.status !== 'open' && <p className="muted">This request already has a helper.</p>}
+
+      {role === 'none' && request.status !== 'open' && (
+        <p className="muted">This request already has a helper.</p>
+      )}
+
       {isHelper && !accepted && <div className="info">Offer sent ✓ Waiting for the owner to accept.</div>}
+
       {isHelper && accepted && !iAmAccepted && (
         <div className="info">The owner chose another neighbour. Thank you for offering!</div>
       )}
-      {iAmAccepted && request.status === 'matched' && <div className="info">🎉 You were accepted! Use the chat below.</div>}
+
+      {iAmAccepted && request.status === 'matched' && (
+        <div className="info">🎉 You were accepted! Use the chat below.</div>
+      )}
+
       {!isOwner && (
         <p>
           <button className="btn ghost small" onClick={handleReport}>⚑ Report request</button>
@@ -189,11 +242,13 @@ export default function DetailScreen({ requestId, myId, onBack }) {
         <div className="card">
           <h3>Neighbours who offered help</h3>
           {offers.length === 0 && <p className="muted small">No offers yet. Check back soon.</p>}
+
           {offers.map((o) => (
             <div className="offer" key={o.id}>
               <div>
                 <strong>{o.users?.name || 'Neighbour'}</strong> <Rating value={o.users?.rating} />
               </div>
+
               {accepted?.helper_id === o.helper_id ? (
                 <span className="badge matched">Accepted ✓</span>
               ) : (
@@ -224,6 +279,7 @@ export default function DetailScreen({ requestId, myId, onBack }) {
       {isOwner && request.status === 'matched' && accepted && (
         <div className="card">
           <h3>Done? Rate {accepted.users?.name || 'your helper'}</h3>
+
           <div className="stars">
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} type="button" className={n <= stars ? 'on' : ''} onClick={() => setStars(n)}>
@@ -231,6 +287,7 @@ export default function DetailScreen({ requestId, myId, onBack }) {
               </button>
             ))}
           </div>
+
           <div className="field">
             <textarea
               value={review}
@@ -238,6 +295,7 @@ export default function DetailScreen({ requestId, myId, onBack }) {
               placeholder="Write a short review (optional)"
             />
           </div>
+
           <button
             className="btn"
             disabled={busy || stars === 0}
