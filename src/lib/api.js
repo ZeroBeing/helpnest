@@ -1,56 +1,298 @@
-import Groq from 'groq-sdk';
+import { supabase } from './supabaseClient';
 
-export default async function handler(req, res) {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+/**
+ * Checks whether a user is currently banned before granting write permissions.
+ */
+async function checkUserBanStatus(userId) {
+  if (!userId) return;
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('is_banned, banned_until, ban_reason')
+    .eq('id', userId)
+    .single();
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking ban status:', error);
+    return;
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (userData?.is_banned) {
+    const isTempBan = userData.banned_until && new Date(userData.banned_until) > new Date();
+    const isPermanent = !userData.banned_until;
+    if (isTempBan || isPermanent) {
+      const reason = userData.ban_reason ? ` Reason: ${userData.ban_reason}` : '';
+      throw new Error(`Your account has been suspended.${reason}`);
+    }
   }
+}
 
-  const { content, type } = req.body || {};
-
-  if (!content) {
-    return res.status(400).json({ error: 'Content is required' });
-  }
-
+/**
+ * Calls serverless API endpoint (/api/moderate) for text moderation.
+ * Keeps Groq SDK out of Vite bundle to fix build errors.
+ */
+async function moderateContent(content, type = 'request') {
   try {
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const prompt = `You are an AI moderator for a community help platform called HelpNest. 
-Analyze the following text for severe profanity, abuse, harassment, threats, hate speech, or explicit content.
-
-Text to analyze: "${content}"
-
-Respond strictly in JSON format with two keys:
-- "flagged": boolean (true if inappropriate, false if allowed)
-- "reason": string (short reason if flagged, otherwise empty string)
-
-Do not block mild, normal, or respectful community requests. Respond ONLY with valid JSON.`;
-
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
+    const res = await fetch('/api/moderate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, type })
     });
-
-    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
-    return res.status(200).json({
-      flagged: Boolean(result.flagged),
-      reason: result.reason || ''
-    });
-  } catch (error) {
-    console.error('Moderation error:', error);
-    return res.status(200).json({ flagged: false, error: 'Moderation bypass due to server error' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.flagged) {
+      throw new Error(`Content blocked by moderation: ${data.reason || 'Inappropriate content detected.'}`);
+    }
+  } catch (err) {
+    if (err.message.startsWith('Content blocked')) {
+      throw err;
+    }
+    console.warn('Moderation check skipped due to error:', err);
   }
+}
+
+// -------------------------------------------------------------
+// REQUESTS BACKEND API
+// -------------------------------------------------------------
+
+/**
+ * Query active requests for the public Home feed.
+ * Excludes completed requests, reported requests, and soft-deleted requests.
+ */
+export async function getRequests() {
+  const { data, error } = await supabase
+    .from('requests')
+    .select(`
+      *,
+      users:user_id (full_name, phone)
+    `)
+    .eq('status', 'open')
+    .is('deleted_at', null)
+    .eq('is_hidden', false)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Retrieve single request details by ID.
+ */
+export async function getRequestById(id) {
+  const { data, error } = await supabase
+    .from('requests')
+    .select(`
+      *,
+      users:user_id (full_name, phone)
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Insert a new help request into DB.
+ * Checks bans, runs AI moderation, and records latitude/longitude if passed.
+ */
+export async function createRequest(requestData) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  await checkUserBanStatus(user.id);
+
+  const textToModerate = `${requestData.title || ''} ${requestData.description || ''}`;
+  await moderateContent(textToModerate, 'request');
+
+  const payload = {
+    user_id: user.id,
+    title: requestData.title,
+    description: requestData.description,
+    category: requestData.category,
+    urgency: requestData.urgency || 'medium',
+    location: requestData.location,
+    latitude: requestData.latitude || null,
+    longitude: requestData.longitude || null,
+    status: 'open'
+  };
+
+  const { data, error } = await supabase
+    .from('requests')
+    .insert([payload])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Safe Soft-Delete endpoint for request owners.
+ * Marks deleted_at without removing child records (offers, messages, reviews).
+ */
+export async function deleteRequest(requestId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data: req, error: fetchErr } = await supabase
+    .from('requests')
+    .select('user_id')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchErr || !req) throw new Error('Request not found');
+  if (req.user_id !== user.id) throw new Error('Unauthorized: You can only delete your own request.');
+
+  const { error } = await supabase
+    .from('requests')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', requestId);
+
+  if (error) throw error;
+  return true;
+}
+
+/**
+ * Update status of a request ('in_progress', 'completed', 'cancelled').
+ */
+export async function updateRequestStatus(requestId, status) {
+  const { data, error } = await supabase
+    .from('requests')
+    .update({ status })
+    .eq('id', requestId)
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+// -------------------------------------------------------------
+// OFFERS & MESSAGES BACKEND API
+// -------------------------------------------------------------
+
+/**
+ * Insert a new offer with ban check and AI moderation.
+ */
+export async function createOffer(requestId, message = '') {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  await checkUserBanStatus(user.id);
+
+  if (message.trim()) {
+    await moderateContent(message, 'chat');
+  }
+
+  const { data, error } = await supabase
+    .from('offers')
+    .insert([{
+      request_id: requestId,
+      helper_id: user.id,
+      message,
+      status: 'pending'
+    }])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Insert a chat message into DB with ban check and AI moderation.
+ */
+export async function sendMessage(requestId, messageText) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  await checkUserBanStatus(user.id);
+  await moderateContent(messageText, 'chat');
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([{
+      request_id: requestId,
+      sender_id: user.id,
+      content: messageText
+    }])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Retrieve messages for a given request ID.
+ */
+export async function getMessages(requestId) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      users:sender_id (full_name)
+    `)
+    .eq('request_id', requestId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+// -------------------------------------------------------------
+// REPORTS & ADMIN REVIEW BACKEND API
+// -------------------------------------------------------------
+
+/**
+ * Log report and automatically flag `is_hidden = true` on the request.
+ */
+export async function reportRequest(requestId, reason) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { error: reportErr } = await supabase
+    .from('reports')
+    .insert([{
+      request_id: requestId,
+      reporter_id: user.id,
+      reason
+    }]);
+
+  if (reportErr) throw reportErr;
+
+  const { error: hideErr } = await supabase
+    .from('requests')
+    .update({ is_hidden: true })
+    .eq('id', requestId);
+
+  if (hideErr) throw hideErr;
+  return true;
+}
+
+/**
+ * Admin handler to approve (unhide) or dismiss (soft-delete) reported items and issue bans.
+ */
+export async function adminReviewReport(requestId, action, banUser = false, banReason = '') {
+  if (action === 'approve') {
+    await supabase.from('requests').update({ is_hidden: false }).eq('id', requestId);
+  } else if (action === 'dismiss') {
+    await supabase.from('requests').update({ deleted_at: new Date().toISOString() }).eq('id', requestId);
+  }
+
+  if (banUser) {
+    const { data: req } = await supabase
+      .from('requests')
+      .select('user_id')
+      .eq('id', requestId)
+      .single();
+
+    if (req?.user_id) {
+      await supabase
+        .from('users')
+        .update({
+          is_banned: true,
+          ban_reason: banReason || 'Violated community guidelines',
+          banned_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        })
+        .eq('id', req.user_id);
+    }
+  }
+  return true;
 }
